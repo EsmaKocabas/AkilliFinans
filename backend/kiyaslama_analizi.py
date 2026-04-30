@@ -4,13 +4,13 @@ import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from scipy.spatial.distance import cdist
 
-print("Kıyaslama Analizi Başlatılıyor: Hibrit Model vs Random Search...\n")
+print("Kıyaslama Analizi Başlatılıyor: Hibrit Model vs Random Search\n")
 
-# 1. Verileri Yükle (Yeni Yollar)
+# 1. Verileri Yükle 
 df_musteriler = pd.read_csv('backend/veri/demand_points.csv')
 df_atm = pd.read_csv('backend/veri/atm_candidates.csv')
 
-# 2. Sütun İsimlerini Güncelle (X, Y -> latitude, longitude)
+# 2. Sütun İsimleri
 musteriler = df_musteriler[['latitude', 'longitude']].values
 aday_atmler = df_atm[['latitude', 'longitude']].values
 kume_sayisi = 5
@@ -69,16 +69,15 @@ print(f"\nSONUÇ: Hibrit algoritma, rastgele seçime göre %{iyilesme_orani:.2f}
 yontemler = ['Random Search\n(Ortalama)', 'Hibrit Yöntem\n(K-Means+Greedy)']
 maliyetler = [random_ortalama_maliyet, hibrit_maliyeti]
 
-plt.figure(figsize=(9, 6)) # Biraz daha geniş ve ferah bir alan
+plt.figure(figsize=(9, 6)) 
 bar_colors = ['#e74c3c', '#2ecc71']
 bars = plt.bar(yontemler, maliyetler, color=bar_colors, width=0.4, edgecolor='black', linewidth=1)
 
-# Rakamların (87 ve 54) barların hemen üzerine şık yerleşimi
 for bar in bars:
     yval = bar.get_height()
-    # yval * 0.02 ekleyerek orantılı bir boşluk bırakıyoruz (sabit +10 yerine)
+    # yval * 0.02 ekleyerek orantılı bir boşluk bırak
     plt.text(bar.get_x() + bar.get_width()/2, yval + (yval * 0.02), 
-             f'{yval:.1f}', # .1f ile küsuratı göstererek daha teknik bir hava katıyoruz
+             f'{yval:.1f}', 
              ha='center', va='bottom', fontweight='bold', fontsize=13)
 
 # Grafiğin üst kısmında rakamların sıkışmaması için limit ekliyoruz
@@ -90,5 +89,5 @@ plt.grid(axis='y', linestyle='--', alpha=0.6)
 
 # Yeni Yola Kaydet
 plt.savefig('backend/veri/algoritma_kiyaslama_raporu.png', bbox_inches='tight', dpi=300)
-print("✅ Geliştirilmiş kıyaslama grafiği 'backend/veri' klasörüne kaydedildi.")
+print(" Geliştirilmiş kıyaslama grafiği 'backend/veri' klasörüne kaydedildi.")
 plt.show()

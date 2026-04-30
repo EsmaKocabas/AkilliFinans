@@ -14,7 +14,7 @@ aday_atm_sayisi = 50
 # Sonuçları tutacağımız liste
 analiz_sonuclari = []
 
-# Toplam maliyet hesaplama fonksiyonu (latitude/longitude uyumlu)
+# Toplam maliyet hesaplama fonksiyonu 
 def toplam_maliyet_hesapla(musteriler, secilen_atmler):
     mesafeler = cdist(musteriler, secilen_atmler)
     en_kisa_mesafeler = np.min(mesafeler, axis=1)
@@ -79,7 +79,7 @@ for n in veri_boyutlari:
     
     analiz_sonuclari.append({
         "Musteri_Sayisi (N)": n,
-        "Hibrit_Maliyet": round(hibrit_maliyet, 4), # İzmir koordinatları yakın olduğu için hassasiyet artırıldı
+        "Hibrit_Maliyet": round(hibrit_maliyet, 4), 
         "Random_Maliyet": round(random_maliyet, 4),
         "Maliyet_Iyilesmesi (%)": round(iyilesme, 2),
         "Hibrit_Sure (sn)": round(hibrit_sure, 4),

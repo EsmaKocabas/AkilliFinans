@@ -11,7 +11,7 @@ fake = Faker('tr_TR')
 if not os.path.exists('veri'):
     os.makedirs('veri')
 
-print("🗄️ Ebru'nun Veritabanı Şemasına Uygun Veriler Üretiliyor...")
+print(" Veritabanı Şemasına Uygun Veriler Üretiliyor...")
 
 num_users = 1900
 num_candidates = 120
@@ -74,4 +74,4 @@ for i in range(num_candidates):
 df_candidates = pd.DataFrame(candidates_data, columns=['candidate_id', 'location_name', 'latitude', 'longitude', 'setup_cost'])
 df_candidates.to_csv('veri/atm_candidates.csv', index=False)
 
-print("✅ Veritabanı ile %100 uyumlu CSV dosyaları başarıyla oluşturuldu!")
+print(" Veritabanı ile %100 uyumlu CSV dosyaları başarıyla oluşturuldu")

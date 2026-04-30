@@ -11,14 +11,14 @@ df = pd.read_csv('backend/veri/demand_points.csv')
 kume_sayisi = 5
 kmeans = KMeans(n_clusters=kume_sayisi, random_state=42, n_init=10)
 
-# Müşterileri kümelere ayır (X, Y yerine latitude, longitude kullanıyoruz)
+# Müşterileri kümelere ayır 
 koordinatlar = df[['latitude', 'longitude']]
 df['Kume'] = kmeans.fit_predict(koordinatlar)
 merkezler = kmeans.cluster_centers_
 
 print(f" {kume_sayisi} adet ideal merkez (ATM noktası) bulundu:\n", merkezler)
 
-# 3. SONUÇLARI GÖRSELLEŞTİR (PROFESYONEL DÜZENLEME)
+# 3. SONUÇLARI GÖRSELLEŞTİR 
 plt.figure(figsize=(10, 6))
 
 # Müşterileri yeni koordinat isimlerine göre renklendir

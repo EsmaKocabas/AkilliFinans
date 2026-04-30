@@ -5,11 +5,11 @@ from scipy.spatial.distance import cdist
 
 print("Farklı K Değerleri (ATM Sayısı) İçin Maliyet Analizi Başlatılıyor\n")
 
-# Veri yolları yeni klasör yapısına göre güncellendi
+# Veri yolları ve isimler
 df_musteriler = pd.read_csv('backend/veri/demand_points.csv')
 df_atm = pd.read_csv('backend/veri/atm_candidates.csv')
 
-# Sütun isimleri latitude ve longitude olarak güncellendi
+# Sütun isimleri 
 musteriler = df_musteriler[['latitude', 'longitude']].values
 aday_atmler = df_atm[['latitude', 'longitude']].values
 

@@ -6,13 +6,13 @@ from scipy.spatial.distance import cdist
 
 print("Veriler okunuyor ve Hibrit Algoritma başlatılıyor...")
 
-# 1. YENİ VERİ YOLLARI VE YENİ İSİMLER
+#  VERİ YOLLARI VE İSİMLER
 df_musteriler = pd.read_csv('backend/veri/demand_points.csv')
 df_atm = pd.read_csv('backend/veri/atm_candidates.csv')
 
-# K-Means (Önceki adım - Merkezleri tekrar alıyoruz)
+# K-Means 
 kume_sayisi = 5
-# X ve Y yerine latitude ve longitude kullanıyoruz
+# latitude ve longitude sütunlarını kullanarak K-Means kümeleme yapalım
 musteri_koordinatlar = df_musteriler[['latitude', 'longitude']]
 kmeans = KMeans(n_clusters=kume_sayisi, random_state=42, n_init=10)
 df_musteriler['Kume'] = kmeans.fit_predict(musteri_koordinatlar)
@@ -20,7 +20,7 @@ merkezler = kmeans.cluster_centers_
 
 # GREEDY YAKLAŞIM
 secilen_atmler = []
-# Aday ATM koordinatlarını yeni isimlerle listeye alalım
+# Aday ATM koordinatlarını listeye alalım
 uygun_atmler = df_atm[['latitude', 'longitude']].values.copy() 
 
 print("\n--- Greedy Seçim Sonuçları ---")
@@ -28,11 +28,11 @@ for i, merkez in enumerate(merkezler):
     # Merkez ile tüm uygun ATM adayları arasındaki mesafeleri (maliyetleri) hesapla
     mesafeler = cdist([merkez], uygun_atmler)[0]
     
-    # En kısa mesafeye (en düşük maliyete) sahip olan ATM'nin indeksini bul
+    # En kısa mesafeye  sahip olan ATM'nin indeksini bul
     en_yakin_indeks = np.argmin(mesafeler)
     en_yakin_atm = uygun_atmler[en_yakin_indeks]
     
-    # Seçilen ATM'yi kaydet (İsimleri Lat ve Lng olarak güncelledik)
+    # Seçilen ATM'yi kaydet ve sonuç listesine ekle
     secilen_atmler.append({
         'Kume_No': i + 1,
         'Sanal_Merkez_Lat': merkez[0],
@@ -51,7 +51,7 @@ for i, merkez in enumerate(merkezler):
 df_secilen_atmler = pd.DataFrame(secilen_atmler)
 df_secilen_atmler.to_csv('backend/veri/secilen_kesin_atmler.csv', index=False)
 
-# 4. GÖRSELLEŞTİRME (Grafik Çizimleri Yeni İsimlere Göre Güncellendi)
+# 4. GÖRSELLEŞTİRME 
 plt.figure(figsize=(12, 7))
 
 # Müşteriler (latitude, longitude)
@@ -78,7 +78,7 @@ plt.ylabel("Boylam (Longitude)")
 plt.legend(loc='lower right')
 plt.grid(True, linestyle='--', alpha=0.5)
 
-# Yeni Yola Kaydet (Eski resmin üzerine yazılacak ve güncellenecek)
+# Yeni Yola Kaydet 
 plt.savefig('backend/veri/hibrit_wlp_sonuc.png')
 print("\n✅ Algoritma tamamlandı! Kesin ATM listesi ve YENİ Grafik 'backend/veri' klasörüne kaydedildi.")
 plt.show()
