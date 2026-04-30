@@ -32,7 +32,7 @@ class _AkilliFinansAppState extends State<AkilliFinansApp> {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Akilli Finans Wireframe',
+      title: 'Akıllı Finans Wireframe',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: _selectedPreset.primary),
         scaffoldBackgroundColor: _selectedPreset.background,
@@ -40,7 +40,7 @@ class _AkilliFinansAppState extends State<AkilliFinansApp> {
       ),
       home: Scaffold(
         appBar: AppBar(
-          title: Text('Akilli Finans - ${_selectedPreset.name}'),
+          title: Text('Akıllı Finans - ${_selectedPreset.name}'),
           actions: [
             Padding(
               padding: const EdgeInsets.only(right: 8),
@@ -93,7 +93,7 @@ class _AkilliFinansAppState extends State<AkilliFinansApp> {
             NavigationDestination(
               icon: Icon(Icons.receipt_long_outlined),
               selectedIcon: Icon(Icons.receipt_long),
-              label: 'Gecmis',
+              label: 'Geçmiş',
             ),
             NavigationDestination(
               icon: Icon(Icons.person_outline),
@@ -103,7 +103,7 @@ class _AkilliFinansAppState extends State<AkilliFinansApp> {
             NavigationDestination(
               icon: Icon(Icons.trending_up_outlined),
               selectedIcon: Icon(Icons.trending_up),
-              label: 'Yatirim',
+              label: 'Yatırım',
             ),
           ],
         ),
