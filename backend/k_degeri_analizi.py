@@ -5,13 +5,15 @@ from scipy.spatial.distance import cdist
 
 print("Farklı K Değerleri (ATM Sayısı) İçin Maliyet Analizi Başlatılıyor\n")
 
-df_musteriler = pd.read_csv('veri/musteri_verisi.csv')
-df_atm = pd.read_csv('veri/atm_adaylari.csv')
+# Veri yolları yeni klasör yapısına göre güncellendi
+df_musteriler = pd.read_csv('backend/veri/demand_points.csv')
+df_atm = pd.read_csv('backend/veri/atm_candidates.csv')
 
-musteriler = df_musteriler[['X', 'Y']].values
-aday_atmler = df_atm[['X', 'Y']].values
+# Sütun isimleri latitude ve longitude olarak güncellendi
+musteriler = df_musteriler[['latitude', 'longitude']].values
+aday_atmler = df_atm[['latitude', 'longitude']].values
 
-#  farklı K (Depo) sayıları
+# farklı K (Depo) sayıları
 k_degerleri = [3, 5, 7, 10]
 sonuclar = []
 
@@ -20,7 +22,7 @@ def maliyet_hesapla(secilenler):
     return np.sum(np.min(mesafeler, axis=1))
 
 for k in k_degerleri:
-    #  HİBRİT YÖNTEM
+    # HİBRİT YÖNTEM
     kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
     kmeans.fit(musteriler)
     merkezler = kmeans.cluster_centers_
@@ -35,7 +37,7 @@ for k in k_degerleri:
         
     hibrit_maliyeti = maliyet_hesapla(hibrit_secilenler)
     
-    #  RANDOM SEARCH 
+    # RANDOM SEARCH 
     random_maliyetler = []
     for _ in range(10):
         rastgele_indeksler = np.random.choice(len(aday_atmler), size=k, replace=False)
@@ -46,7 +48,7 @@ for k in k_degerleri:
     
     sonuclar.append((k, random_maliyeti, hibrit_maliyeti, iyilesme))
 
-# LaTeX Tablo Çıktısı
+# LaTeX Tablo Çıktısı 
 print(" HAZIR LATEX TABLOSU KODU:\n")
 print(r"\begin{table}[htbp]")
 print(r"\centering")

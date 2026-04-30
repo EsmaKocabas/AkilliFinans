@@ -6,12 +6,13 @@ from scipy.spatial.distance import cdist
 
 print("Kıyaslama Analizi Başlatılıyor: Hibrit Model vs Random Search...\n")
 
-#  Verileri Yükle
-df_musteriler = pd.read_csv('veri/musteri_verisi.csv')
-df_atm = pd.read_csv('veri/atm_adaylari.csv')
+# 1. Verileri Yükle (Yeni Yollar)
+df_musteriler = pd.read_csv('backend/veri/demand_points.csv')
+df_atm = pd.read_csv('backend/veri/atm_candidates.csv')
 
-musteriler = df_musteriler[['X', 'Y']].values
-aday_atmler = df_atm[['X', 'Y']].values
+# 2. Sütun İsimlerini Güncelle (X, Y -> latitude, longitude)
+musteriler = df_musteriler[['latitude', 'longitude']].values
+aday_atmler = df_atm[['latitude', 'longitude']].values
 kume_sayisi = 5
 
 # TOPLAM MALİYET HESAPLAMA
@@ -45,12 +46,11 @@ print(f" HİBRİT YÖNTEM TOPLAM MALİYETİ: {hibrit_maliyeti:.2f} birim")
 # ==========================================
 # 2. YÖNTEM: RANDOM SEARCH (Rastgele Arama)
 # ==========================================
-# Adil bir kıyaslama için rastgele seçimi 100 kere yapıp ortalamasını alıyoruz.
 deneme_sayisi = 100
 random_maliyetler = []
 
 for _ in range(deneme_sayisi):
-    # 50 aday arasından rastgele 5 tanesini  seç
+    # Yeni veri setindeki aday sayısı üzerinden rastgele seçim yapıyoruz
     rastgele_indeksler = np.random.choice(len(aday_atmler), size=kume_sayisi, replace=False)
     rastgele_secilenler = aday_atmler[rastgele_indeksler]
     
@@ -61,28 +61,34 @@ random_ortalama_maliyet = np.mean(random_maliyetler)
 print(f"⚠️ RANDOM SEARCH ORTALAMA MALİYETİ ({deneme_sayisi} Deneme): {random_ortalama_maliyet:.2f} birim")
 
 # ==========================================
-# 3. SONUÇ VE GRAFİK (LaTeX Bildirisi İçin)
+# 3. SONUÇ VE GRAFİK - GÜNCELLENMİŞ GÖRSEL
 # ==========================================
 iyilesme_orani = ((random_ortalama_maliyet - hibrit_maliyeti) / random_ortalama_maliyet) * 100
 print(f"\nSONUÇ: Hibrit algoritma, rastgele seçime göre %{iyilesme_orani:.2f} daha verimlidir!")
 
-# Sütun Grafiği Çizdirme
-yontemler = ['Random Search (Ortalama)', 'Hibrit Yöntem (K-Means+Greedy)']
+yontemler = ['Random Search\n(Ortalama)', 'Hibrit Yöntem\n(K-Means+Greedy)']
 maliyetler = [random_ortalama_maliyet, hibrit_maliyeti]
 
-plt.figure(figsize=(8, 5))
+plt.figure(figsize=(9, 6)) # Biraz daha geniş ve ferah bir alan
 bar_colors = ['#e74c3c', '#2ecc71']
-bars = plt.bar(yontemler, maliyetler, color=bar_colors, width=0.5)
+bars = plt.bar(yontemler, maliyetler, color=bar_colors, width=0.4, edgecolor='black', linewidth=1)
 
-# Barların üzerine değerleri yazdırma
+# Rakamların (87 ve 54) barların hemen üzerine şık yerleşimi
 for bar in bars:
     yval = bar.get_height()
-    plt.text(bar.get_x() + bar.get_width()/2, yval + 100, f'{yval:.0f}', ha='center', va='bottom', fontweight='bold')
+    # yval * 0.02 ekleyerek orantılı bir boşluk bırakıyoruz (sabit +10 yerine)
+    plt.text(bar.get_x() + bar.get_width()/2, yval + (yval * 0.02), 
+             f'{yval:.1f}', # .1f ile küsuratı göstererek daha teknik bir hava katıyoruz
+             ha='center', va='bottom', fontweight='bold', fontsize=13)
 
-plt.title("WLP Optimizasyonu: Algoritma Performans Kıyaslaması", fontweight='bold')
-plt.ylabel("Toplam Mesafe Maliyeti (Daha düşük daha iyi)")
-plt.grid(axis='y', linestyle='--', alpha=0.7)
+# Grafiğin üst kısmında rakamların sıkışmaması için limit ekliyoruz
+plt.ylim(0, max(maliyetler) * 1.2) 
 
-plt.savefig('veri/algoritma_kiyaslama_raporu.png')
-print("✅ Kıyaslama grafiği 'veri' klasörüne kaydedildi.")
+plt.title("WLP Optimizasyonu: Algoritma Performans Kıyaslaması", fontweight='bold', fontsize=14, pad=20)
+plt.ylabel("Toplam Mesafe Maliyeti (Daha düşük daha iyi)", fontsize=11)
+plt.grid(axis='y', linestyle='--', alpha=0.6)
+
+# Yeni Yola Kaydet
+plt.savefig('backend/veri/algoritma_kiyaslama_raporu.png', bbox_inches='tight', dpi=300)
+print("✅ Geliştirilmiş kıyaslama grafiği 'backend/veri' klasörüne kaydedildi.")
 plt.show()
