@@ -80,5 +80,5 @@ plt.grid(True, linestyle='--', alpha=0.5)
 
 # Yeni Yola Kaydet 
 plt.savefig('backend/veri/hibrit_wlp_sonuc.png')
-print("\n✅ Algoritma tamamlandı! Kesin ATM listesi ve YENİ Grafik 'backend/veri' klasörüne kaydedildi.")
+print("\nAlgoritma tamamlandı! Kesin ATM listesi ve YENİ Grafik 'backend/veri' klasörüne kaydedildi.")
 plt.show()
