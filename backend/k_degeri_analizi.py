@@ -3,7 +3,7 @@ import numpy as np
 from sklearn.cluster import KMeans
 from scipy.spatial.distance import cdist
 
-print("Farklı K Değerleri (ATM Sayısı) İçin Maliyet Analizi Başlatılıyor...\n")
+print("Farklı K Değerleri (ATM Sayısı) İçin Maliyet Analizi Başlatılıyor\n")
 
 df_musteriler = pd.read_csv('veri/musteri_verisi.csv')
 df_atm = pd.read_csv('veri/atm_adaylari.csv')
@@ -11,7 +11,7 @@ df_atm = pd.read_csv('veri/atm_adaylari.csv')
 musteriler = df_musteriler[['X', 'Y']].values
 aday_atmler = df_atm[['X', 'Y']].values
 
-# Hocanın istediği farklı K (Depo/ATM) sayıları
+#  farklı K (Depo) sayıları
 k_degerleri = [3, 5, 7, 10]
 sonuclar = []
 
@@ -20,7 +20,7 @@ def maliyet_hesapla(secilenler):
     return np.sum(np.min(mesafeler, axis=1))
 
 for k in k_degerleri:
-    # 1. HİBRİT YÖNTEM
+    #  HİBRİT YÖNTEM
     kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
     kmeans.fit(musteriler)
     merkezler = kmeans.cluster_centers_
@@ -35,7 +35,7 @@ for k in k_degerleri:
         
     hibrit_maliyeti = maliyet_hesapla(hibrit_secilenler)
     
-    # 2. RANDOM SEARCH (10 Deneme Ortalaması)
+    #  RANDOM SEARCH 
     random_maliyetler = []
     for _ in range(10):
         rastgele_indeksler = np.random.choice(len(aday_atmler), size=k, replace=False)
@@ -46,8 +46,8 @@ for k in k_degerleri:
     
     sonuclar.append((k, random_maliyeti, hibrit_maliyeti, iyilesme))
 
-# Doğrudan kopyala-yapıştır yapabileceğiniz LaTeX Tablo Çıktısı
-print("✅ ESMA İÇİN HAZIR LATEX TABLOSU KODU:\n")
+# LaTeX Tablo Çıktısı
+print(" HAZIR LATEX TABLOSU KODU:\n")
 print(r"\begin{table}[htbp]")
 print(r"\centering")
 print(r"\caption{Farklı $K$ Değerleri İçin Random Search ve Hibrit Algoritma Maliyet Kıyaslaması}")

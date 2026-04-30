@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
-from sklearn.cluster import MiniBatchKMeans # OPTİMİZASYON 1
-from scipy.spatial import KDTree # OPTİMİZASYON 2
+from sklearn.cluster import MiniBatchKMeans 
+from scipy.spatial import KDTree 
 import json
 
 def optimize_atm_lokasyonlari_v2(musteri_csv, atm_csv, kume_sayisi=5):

@@ -1,10 +1,17 @@
-# OS files
-.DS_Store
-
-# Environment variables
-.env
-app/.env
-
-# Python cache and compiled files
+# Python / Backend Kuralları
+venv/
 __pycache__/
-*.py[cod]
+*.pyc
+.env
+
+# Veri Dosyaları 
+# backend/veri/*.csv  
+
+# Flutter / Mobil App Kuralları
+app/build/
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.pub-cache/
+app/.pub/
+app/ios/Pods/

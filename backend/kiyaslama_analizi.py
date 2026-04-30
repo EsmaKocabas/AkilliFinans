@@ -6,7 +6,7 @@ from scipy.spatial.distance import cdist
 
 print("Kıyaslama Analizi Başlatılıyor: Hibrit Model vs Random Search...\n")
 
-# 1. Verileri Yükle
+#  Verileri Yükle
 df_musteriler = pd.read_csv('veri/musteri_verisi.csv')
 df_atm = pd.read_csv('veri/atm_adaylari.csv')
 
@@ -14,12 +14,12 @@ musteriler = df_musteriler[['X', 'Y']].values
 aday_atmler = df_atm[['X', 'Y']].values
 kume_sayisi = 5
 
-# --- FONKSİYON: TOPLAM MALİYET (MESAFE) HESAPLAMA ---
+# TOPLAM MALİYET HESAPLAMA
 def toplam_maliyet_hesapla(secilen_atm_koordinatlari):
     """Her müşterinin kendine en yakın ATM'ye olan mesafelerinin toplamını bulur."""
     # cdist, her müşteri ile her ATM arasındaki mesafeyi matris olarak verir
     mesafeler = cdist(musteriler, secilen_atm_koordinatlari)
-    # Her müşteri için minimum mesafeyi (en yakın ATM'yi) bul ve topla
+    # Her müşteri için minimum mesafeyi bul ve topla
     en_kisa_mesafeler = np.min(mesafeler, axis=1)
     return np.sum(en_kisa_mesafeler)
 
@@ -40,7 +40,7 @@ for merkez in merkezler:
     uygun_atmler_kopyasi = np.delete(uygun_atmler_kopyasi, en_yakin_indeks, axis=0)
 
 hibrit_maliyeti = toplam_maliyet_hesapla(hibrit_secilenler)
-print(f"✅ HİBRİT YÖNTEM TOPLAM MALİYETİ: {hibrit_maliyeti:.2f} birim")
+print(f" HİBRİT YÖNTEM TOPLAM MALİYETİ: {hibrit_maliyeti:.2f} birim")
 
 # ==========================================
 # 2. YÖNTEM: RANDOM SEARCH (Rastgele Arama)
@@ -50,7 +50,7 @@ deneme_sayisi = 100
 random_maliyetler = []
 
 for _ in range(deneme_sayisi):
-    # 50 aday arasından rastgele 5 tanesini (indeksini) seç
+    # 50 aday arasından rastgele 5 tanesini  seç
     rastgele_indeksler = np.random.choice(len(aday_atmler), size=kume_sayisi, replace=False)
     rastgele_secilenler = aday_atmler[rastgele_indeksler]
     
@@ -64,7 +64,7 @@ print(f"⚠️ RANDOM SEARCH ORTALAMA MALİYETİ ({deneme_sayisi} Deneme): {rand
 # 3. SONUÇ VE GRAFİK (LaTeX Bildirisi İçin)
 # ==========================================
 iyilesme_orani = ((random_ortalama_maliyet - hibrit_maliyeti) / random_ortalama_maliyet) * 100
-print(f"\n🚀 SONUÇ: Hibrit algoritma, rastgele seçime göre %{iyilesme_orani:.2f} daha verimlidir!")
+print(f"\nSONUÇ: Hibrit algoritma, rastgele seçime göre %{iyilesme_orani:.2f} daha verimlidir!")
 
 # Sütun Grafiği Çizdirme
 yontemler = ['Random Search (Ortalama)', 'Hibrit Yöntem (K-Means+Greedy)']

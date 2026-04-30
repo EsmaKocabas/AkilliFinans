@@ -1,7 +1,7 @@
 import csv
 from pathlib import Path
 
-from connection import get_connection
+from backend.database.connection import get_connection
 
 ROOT = Path(__file__).resolve().parent.parent
 

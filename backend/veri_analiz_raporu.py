@@ -4,9 +4,9 @@ import time
 from sklearn.cluster import KMeans
 from scipy.spatial.distance import cdist
 
-print("🚀 Performans ve Ölçeklenebilirlik Analizi Başlatılıyor...\n")
+print(" Performans ve Ölçeklenebilirlik Analizi Başlatılıyor\n")
 
-# Test edilecek müşteri sayıları (Esma'nın istediği N değerleri)
+# Test edilecek müşteri sayıları 
 veri_boyutlari = [100, 1000, 10000]
 kume_sayisi = 5
 aday_atm_sayisi = 50
@@ -24,12 +24,12 @@ def toplam_maliyet_hesapla(musteriler, secilen_atmler):
 for n in veri_boyutlari:
     print(f"[{n} Müşteri] için testler çalıştırılıyor...")
     
-    # 1. Anlık Sentetik Veri Üretimi
+    #  Anlık Sentetik Veri Üretimi
     musteriler = np.random.uniform(low=0, high=100, size=(n, 2))
     aday_atmler = np.random.uniform(low=0, high=100, size=(aday_atm_sayisi, 2))
     
     # ==========================================
-    # TEST 1: HİBRİT ALGORİTMA (K-Means + Greedy)
+    #     HİBRİT ALGORİTMA (K-Means + Greedy)
     # ==========================================
     baslangic_zamani_hibrit = time.time()
     
@@ -50,11 +50,11 @@ for n in veri_boyutlari:
     hibrit_maliyet = toplam_maliyet_hesapla(musteriler, hibrit_secilenler)
     
     # ==========================================
-    # TEST 2: RANDOM SEARCH (Rastgele Seçim)
+    #        RANDOM SEARCH (Rastgele Seçim)
     # ==========================================
     baslangic_zamani_random = time.time()
     
-    # 10 deneme yapıp ortalamasını alıyoruz ki adil olsun
+    # 10 deneme yapıp ortalamasını alıyoruz 
     deneme_sayisi = 10
     random_maliyetler = []
     for _ in range(deneme_sayisi):
@@ -67,7 +67,7 @@ for n in veri_boyutlari:
     random_maliyet = np.mean(random_maliyetler)
     
     # ==========================================
-    # SONUÇLARI KAYDET
+    #         SONUÇLARI KAYDET
     # ==========================================
     iyilesme = ((random_maliyet - hibrit_maliyet) / random_maliyet) * 100
     
@@ -84,7 +84,7 @@ for n in veri_boyutlari:
 df_analiz = pd.DataFrame(analiz_sonuclari)
 df_analiz.to_csv('veri/performans_raporu.csv', index=False)
 
-print("\n✅ ANALİZ TAMAMLANDI! İşte LaTeX Tablosuna Koyacağınız Veriler:")
+print("\n ANALİZ TAMAMLANDI! İşte LaTeX Tablosuna Koyacağınız Veriler:")
 print("-" * 75)
 print(df_analiz.to_string(index=False))
 print("-" * 75)
