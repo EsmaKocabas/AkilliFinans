@@ -13,11 +13,11 @@ def optimize_atm_lokasyonlari_v2(musteri_csv, atm_csv, kume_sayisi=5):
         df_musteriler = pd.read_csv(musteri_csv)
         df_atm = pd.read_csv(atm_csv)
         
-        musteri_koordinatlar = df_musteriler[['X', 'Y']].values
-        uygun_atmler = df_atm[['X', 'Y']].values
+        # 1. DEĞİŞİKLİK: 'X' ve 'Y' yerine Ebru'nun veritabanındaki isimleri yazdık
+        musteri_koordinatlar = df_musteriler[['latitude', 'longitude']].values
+        uygun_atmler = df_atm[['latitude', 'longitude']].values
         
         # OPTİMİZASYON 1: Büyük veriler için RAM dostu MiniBatchKMeans
-        # Normal KMeans O(N) iken, MiniBatch çok daha az iterasyonla sonucu bulur.
         kmeans = MiniBatchKMeans(n_clusters=kume_sayisi, random_state=42, batch_size=1000)
         kmeans.fit(musteri_koordinatlar)
         merkezler = kmeans.cluster_centers_
@@ -26,7 +26,6 @@ def optimize_atm_lokasyonlari_v2(musteri_csv, atm_csv, kume_sayisi=5):
         
         for i, merkez in enumerate(merkezler):
             # OPTİMİZASYON 2: Uzamsal Arama Ağacı (KD-Tree)
-            # Tüm adaylara bakmak O(M) yerine, ağaçta aramak O(log M) sürer.
             agac = KDTree(uygun_atmler)
             
             # k=1: Sadece en yakın 1 komşuyu getir
@@ -48,4 +47,5 @@ def optimize_atm_lokasyonlari_v2(musteri_csv, atm_csv, kume_sayisi=5):
         return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":
-    print(json.dumps(optimize_atm_lokasyonlari_v2('veri/musteri_verisi.csv', 'veri/atm_adaylari.csv'), indent=4))
+    # 2. DEĞİŞİKLİK: Eski dosyalar yerine yeni veritabanı CSV'lerinin yollarını verdik
+    print(json.dumps(optimize_atm_lokasyonlari_v2('backend/veri/demand_points.csv', 'backend/veri/atm_candidates.csv'), indent=4))
