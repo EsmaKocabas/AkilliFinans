@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'design_preset.dart';
+import 'theme/design_tokens.dart';
+import 'widgets/scrollable_screen_shell.dart';
 
 /// Harcama kategorileri: Market, Fatura, Ulaşım, Eğlence (+ konut, gelir, yatırım).
 enum _TxCategory {
@@ -46,7 +48,7 @@ extension _TxCategoryX on _TxCategory {
       };
 }
 
-/// İşlem geçmişi: kategorili harcama listesi + ikonlu UI + detay.
+/// İşlem geçmişi: kategorili liste + detay (işlem etkinliği UI Dashboard’dadır).
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key, required this.preset});
 
@@ -314,182 +316,147 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
     final showCategoryBar = _filter != _TxFilter.gelir;
 
-    return Container(
-      color: const Color(0xFFF5F5F5),
-      child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 560;
-
-            return ListView(
-              padding: EdgeInsets.fromLTRB(wide ? 24 : 16, 16, wide ? 24 : 16, 28),
-              children: [
-                const Text(
-                  'İşlem Geçmişi',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Harcamalar Market, Fatura, Ulaşım ve Eğlence gibi kategorilerde gruplanır; ikona dokunarak süzebilirsiniz.',
-                  style: TextStyle(color: Color(0xFF616161), height: 1.35),
-                ),
-                const SizedBox(height: 14),
-                _SummaryStrip(expenseSum: expenseSum, incomeSum: incomeSum),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.black12),
+    return ScrollableScreenShell(
+      wideBreakpoint: 900,
+      children: [
+        const Text('İşlem Geçmişi', style: AppTypography.pageTitle),
+        const SizedBox(height: AppSpacing.xs),
+        const Text(
+          'Kayıtları süzün; satıra dokunarak detayları görün. Özet işlem listesi için Dashboard’a bakın.',
+          style: AppTypography.pageSubtitle,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _SummaryStrip(expenseSum: expenseSum, incomeSum: incomeSum),
+        const SizedBox(height: AppSpacing.md),
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.md + 2),
+          decoration: AppDecorations.surfaceCard(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Listeyi daralt', style: AppTypography.sectionTitle),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Önce işlem tipini, istenirse harcama kategorisini seçin.',
+                style: AppTypography.sectionHint,
+              ),
+              const SizedBox(height: AppSpacing.sm + 2),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  _FilterChip(
+                    label: 'Tümü',
+                    selected: _filter == _TxFilter.tumu,
+                    onTap: () => _setFilter(_TxFilter.tumu),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Listeyi daralt',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Önce işlem tipini, istenirse harcama kategorisini seçin.',
-                        style: TextStyle(color: Color(0xFF616161), fontSize: 12),
-                      ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _FilterChip(
-                            label: 'Tümü',
-                            selected: _filter == _TxFilter.tumu,
-                            onTap: () => _setFilter(_TxFilter.tumu),
-                          ),
-                          _FilterChip(
-                            label: 'Sadece harcamalar',
-                            selected: _filter == _TxFilter.gider,
-                            onTap: () => _setFilter(_TxFilter.gider),
-                          ),
-                          _FilterChip(
-                            label: 'Sadece gelirler',
-                            selected: _filter == _TxFilter.gelir,
-                            onTap: () => _setFilter(_TxFilter.gelir),
-                          ),
-                        ],
-                      ),
-                    ],
+                  _FilterChip(
+                    label: 'Sadece harcamalar',
+                    selected: _filter == _TxFilter.gider,
+                    onTap: () => _setFilter(_TxFilter.gider),
                   ),
-                ),
-                if (showCategoryBar) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.black12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Harcama kategorileri',
-                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _filter == _TxFilter.gider
-                              ? 'Yalnızca seçtiğiniz kategorideki harcamalar listelenir.'
-                              : 'Tüm işlemler içinden bu kategoriye düşenleri gösterir (gelir/yatırım satırları gizlenir).',
-                          style: const TextStyle(color: Color(0xFF616161), fontSize: 12),
-                        ),
-                        const SizedBox(height: 12),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              _CategoryFilterTile(
-                                label: 'Tümü',
-                                icon: Icons.apps_outlined,
-                                selected: _categoryFilter == null,
-                                onTap: () => setState(() => _categoryFilter = null),
-                              ),
-                              ...[
-                                _TxCategory.market,
-                                _TxCategory.fatura,
-                                _TxCategory.ulasim,
-                                _TxCategory.eglence,
-                                _TxCategory.konut,
-                              ].map(
-                                (c) => Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: _CategoryFilterTile(
-                                    label: c.label,
-                                    icon: c.icon,
-                                    selected: _categoryFilter == c,
-                                    onTap: () => setState(() => _categoryFilter = c),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                  _FilterChip(
+                    label: 'Sadece gelirler',
+                    selected: _filter == _TxFilter.gelir,
+                    onTap: () => _setFilter(_TxFilter.gelir),
                   ),
                 ],
-                const SizedBox(height: 16),
-                Row(
+              ),
+            ],
+          ),
+        ),
+        if (showCategoryBar) ...[
+          const SizedBox(height: AppSpacing.md),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md + 2),
+            decoration: AppDecorations.surfaceCard(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Kategori filtresi', style: AppTypography.sectionTitle),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  _filter == _TxFilter.gider
+                      ? 'Seçilen kategorideki harcamaları gösterir.'
+                      : 'Tüm işlemler içinden seçilen kategoriye düşenleri gösterir.',
+                  style: AppTypography.sectionHint,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
                   children: [
-                    const Expanded(
-                      child: Text(
-                        'İşlem listesi',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17),
-                      ),
+                    FilterChip(
+                      label: const Text('Tümü'),
+                      selected: _categoryFilter == null,
+                      onSelected: (_) => setState(() => _categoryFilter = null),
+                      avatar: const Icon(Icons.apps_outlined, size: 18),
                     ),
-                    Text(
-                      '${visible.length} kayıt',
-                      style: const TextStyle(color: Color(0xFF616161), fontSize: 13),
+                    ...[
+                      _TxCategory.market,
+                      _TxCategory.fatura,
+                      _TxCategory.ulasim,
+                      _TxCategory.eglence,
+                      _TxCategory.konut,
+                      _TxCategory.yatirim,
+                    ].map(
+                      (c) => FilterChip(
+                        avatar: Icon(c.icon, size: 18),
+                        label: Text(c.label),
+                        selected: _categoryFilter == c,
+                        onSelected: (selected) {
+                          setState(() {
+                            _categoryFilter = selected ? c : null;
+                          });
+                        },
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                if (visible.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.black12),
-                    ),
-                    child: const Column(
-                      children: [
-                        Icon(Icons.filter_alt_off_outlined, size: 40, color: Colors.black38),
-                        SizedBox(height: 12),
-                        Text(
-                          'Bu filtreye uygun işlem yok.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        SizedBox(height: 6),
-                        Text(
-                          'Üstteki “Tümü” veya kategori seçimini sıfırlayın.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Color(0xFF616161), fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  ...visible.map((tx) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _TxCard(entry: tx, onTap: () => _showDetail(tx)),
-                      )),
               ],
-            );
-          },
+            ),
+          ),
+        ],
+        const SizedBox(height: AppSpacing.lg),
+        Row(
+          children: [
+            Expanded(child: Text('İşlem listesi', style: AppTypography.sectionTitle)),
+            Text('${visible.length} kayıt', style: AppTypography.listSubtitle),
+          ],
         ),
-      ),
+        const SizedBox(height: AppSpacing.sm),
+        if (visible.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadii.tile),
+              border: Border.all(color: AppColors.borderSubtle),
+            ),
+            child: const Column(
+              children: [
+                Icon(Icons.filter_alt_off_outlined, size: 40, color: Colors.black38),
+                SizedBox(height: AppSpacing.md),
+                Text(
+                  'Bu filtreye uygun işlem yok.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                SizedBox(height: AppSpacing.xs + 2),
+                Text(
+                  'Üstteki “Tümü” veya kategori seçimini sıfırlayın.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                ),
+              ],
+            ),
+          )
+        else
+          ...visible.map((tx) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm + 2),
+                child: _TxCard(entry: tx, onTap: () => _showDetail(tx)),
+              )),
+      ],
     );
   }
 
@@ -549,60 +516,6 @@ class _CategoryPill extends StatelessWidget {
   }
 }
 
-/// Yatay şeritte kategori seçimi.
-class _CategoryFilterTile extends StatelessWidget {
-  const _CategoryFilterTile({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: selected ? Colors.black : Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          width: 84,
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: selected ? Colors.black : Colors.black12),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: selected ? Colors.white : Colors.black87, size: 26),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: selected ? Colors.white : Colors.black87,
-                  height: 1.15,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _SummaryStrip extends StatelessWidget {
   const _SummaryStrip({required this.expenseSum, required this.incomeSum});
 
@@ -612,10 +525,10 @@ class _SummaryStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpacing.md + 2),
       decoration: BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.heroDark,
+        borderRadius: BorderRadius.circular(AppRadii.card),
       ),
       child: Row(
         children: [
@@ -668,7 +581,7 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? Colors.black : const Color(0xFFF1F1F1),
+      color: selected ? AppColors.heroDark : AppColors.chipBackground,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         onTap: onTap,
@@ -679,7 +592,7 @@ class _FilterChip extends StatelessWidget {
             label,
             style: TextStyle(
               fontWeight: FontWeight.w600,
-              color: selected ? Colors.white : Colors.black87,
+              color: selected ? Colors.white : AppColors.textPrimary,
               fontSize: 13,
             ),
           ),
