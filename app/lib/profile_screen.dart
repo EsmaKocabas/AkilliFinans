@@ -51,7 +51,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    const surface = Colors.white;
     const background = Color(0xFFF5F5F5);
     const titleColor = Colors.black;
     const subtitleColor = Color(0xFF616161);

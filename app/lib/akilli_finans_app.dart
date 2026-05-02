@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 
 import 'dashboard_screen.dart';
-import 'design_preset.dart';
 import 'design_presets.dart';
 import 'investment_screen.dart';
 import 'map_screen.dart';
 import 'profile_screen.dart';
+import 'theme/design_tokens.dart';
 import 'transactions_screen.dart';
 
-///seçilen sekme ve UI ön ayarını yönetir.
 class AkilliFinansApp extends StatefulWidget {
   const AkilliFinansApp({super.key});
 
@@ -18,58 +17,39 @@ class AkilliFinansApp extends StatefulWidget {
 
 class _AkilliFinansAppState extends State<AkilliFinansApp> {
   int _selectedTab = 0;
-  DesignPreset _selectedPreset = designPresets.first;
 
   @override
   Widget build(BuildContext context) {
+    const preset = appLightPreset;
+
     final pages = <Widget>[
-      DashboardScreen(preset: _selectedPreset),
-      MapScreen(preset: _selectedPreset),
-      TransactionsScreen(preset: _selectedPreset),
-      ProfileScreen(preset: _selectedPreset),
-      InvestmentScreen(preset: _selectedPreset),
+      DashboardScreen(
+        preset: preset,
+        onNavigateToTab: (index) => setState(() => _selectedTab = index),
+      ),
+      const MapScreen(preset: preset),
+      const TransactionsScreen(preset: preset),
+      const ProfileScreen(preset: preset),
+      const InvestmentScreen(preset: preset),
     ];
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Akıllı Finans Wireframe',
+      title: 'Akıllı Finans',
+      themeMode: ThemeMode.light,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: _selectedPreset.primary),
-        scaffoldBackgroundColor: _selectedPreset.background,
+        colorScheme: ColorScheme.light(
+          surface: preset.surface,
+          primary: preset.primary,
+          onPrimary: Colors.white,
+          onSurface: preset.onSurface,
+        ),
+        scaffoldBackgroundColor: AppColors.canvas,
         useMaterial3: true,
       ),
       home: Scaffold(
         appBar: AppBar(
-          title: Text('Akıllı Finans - ${_selectedPreset.name}'),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: DropdownButtonHideUnderline(
-                // Theme selector to switch between five UI variants.
-                child: DropdownButton<DesignPreset>(
-                  value: _selectedPreset,
-                  dropdownColor: _selectedPreset.surface,
-                  style: TextStyle(color: _selectedPreset.onSurface),
-                  iconEnabledColor: _selectedPreset.onSurface,
-                  items: designPresets
-                      .map(
-                        (preset) => DropdownMenuItem<DesignPreset>(
-                          value: preset,
-                          child: Text(preset.name),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() {
-                        _selectedPreset = value;
-                      });
-                    }
-                  },
-                ),
-              ),
-            ),
-          ],
+          title: const Text('Akıllı Finans'),
         ),
         body: pages[_selectedTab],
         bottomNavigationBar: NavigationBar(
