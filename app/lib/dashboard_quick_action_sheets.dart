@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'app_navigation.dart';
 import 'theme/design_tokens.dart';
 
 /// Dashboard Hızlı Eylemler — modallar controller ömrü StatefulWidget içinde (dışarı tıklanınca güvenli dispose).
@@ -40,7 +41,7 @@ abstract final class DashboardQuickActionSheets {
 
   static Future<void> showFaturaOde(
     BuildContext scaffoldContext, {
-    required void Function(int tabIndex) navigateToTab,
+    required void Function(AppTab tab) navigateToTab,
   }) {
     return showModalBottomSheet<void>(
       context: scaffoldContext,
@@ -92,7 +93,7 @@ abstract final class DashboardQuickActionSheets {
                           OutlinedButton.icon(
                             onPressed: () {
                               Navigator.pop(ctx);
-                              navigateToTab(2);
+                              navigateToTab(AppTab.transactions);
                               WidgetsBinding.instance.addPostFrameCallback((_) {
                                 ScaffoldMessenger.of(scaffoldContext).showSnackBar(
                                   const SnackBar(content: Text('İşlem geçmişi sekmesine geçildi.')),
@@ -172,7 +173,7 @@ abstract final class DashboardQuickActionSheets {
 
   static Future<void> showHedefOlustur(
     BuildContext scaffoldContext, {
-    required void Function(int tabIndex) navigateToTab,
+    required void Function(AppTab tab) navigateToTab,
   }) {
     return showModalBottomSheet<void>(
       context: scaffoldContext,
@@ -392,7 +393,7 @@ class _HedefSheet extends StatefulWidget {
   });
 
   final BuildContext scaffoldContext;
-  final void Function(int tabIndex) navigateToTab;
+  final void Function(AppTab tab) navigateToTab;
 
   @override
   State<_HedefSheet> createState() => _HedefSheetState();
@@ -477,7 +478,7 @@ class _HedefSheetState extends State<_HedefSheet> {
               TextButton.icon(
                 onPressed: () {
                   Navigator.pop(context);
-                  widget.navigateToTab(4);
+                  widget.navigateToTab(AppTab.investment);
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     ScaffoldMessenger.of(widget.scaffoldContext).showSnackBar(
                       const SnackBar(content: Text('Yatırım sekmesi açıldı.')),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
+import 'app_navigation.dart';
 import 'dashboard_quick_action_sheets.dart';
 import 'design_preset.dart';
 import 'theme/design_tokens.dart';
@@ -17,8 +18,8 @@ class DashboardScreen extends StatelessWidget {
 
   final DesignPreset preset;
 
-  /// Alt gezinme ile sekme geçişi (Geçmiş = 2, Yatırım = 4).
-  final ValueChanged<int>? onNavigateToTab;
+  /// Alt gezinme ile sekme geçişi (tip güvenli AppTab).
+  final ValueChanged<AppTab>? onNavigateToTab;
 
   @override
   Widget build(BuildContext context) {
