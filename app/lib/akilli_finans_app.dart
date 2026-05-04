@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'app_navigation.dart';
 import 'dashboard_screen.dart';
 import 'design_presets.dart';
 import 'investment_screen.dart';
@@ -16,22 +17,29 @@ class AkilliFinansApp extends StatefulWidget {
 }
 
 class _AkilliFinansAppState extends State<AkilliFinansApp> {
-  int _selectedTab = 0;
+  AppTab _selectedTab = AppTab.dashboard;
+
+  void _navigateToTab(AppTab tab) {
+    if (_selectedTab == tab) return;
+    setState(() {
+      _selectedTab = tab;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     const preset = appLightPreset;
 
-    final pages = <Widget>[
-      DashboardScreen(
+    final pages = <AppTab, Widget>{
+      AppTab.dashboard: DashboardScreen(
         preset: preset,
-        onNavigateToTab: (index) => setState(() => _selectedTab = index),
+        onNavigateToTab: _navigateToTab,
       ),
-      const MapScreen(preset: preset),
-      const TransactionsScreen(preset: preset),
-      const ProfileScreen(preset: preset),
-      const InvestmentScreen(preset: preset),
-    ];
+      AppTab.map: const MapScreen(preset: preset),
+      AppTab.transactions: const TransactionsScreen(preset: preset),
+      AppTab.profile: const ProfileScreen(preset: preset),
+      AppTab.investment: const InvestmentScreen(preset: preset),
+    };
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -51,40 +59,19 @@ class _AkilliFinansAppState extends State<AkilliFinansApp> {
         appBar: AppBar(
           title: const Text('Akıllı Finans'),
         ),
-        body: pages[_selectedTab],
+        body: pages[_selectedTab]!,
         bottomNavigationBar: NavigationBar(
-          selectedIndex: _selectedTab,
+          selectedIndex: _selectedTab.index,
           onDestinationSelected: (value) {
-            setState(() {
-              _selectedTab = value;
-            });
+            _navigateToTab(AppTab.values[value]);
           },
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.dashboard_outlined),
-              selectedIcon: Icon(Icons.dashboard),
-              label: 'Dashboard',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.map_outlined),
-              selectedIcon: Icon(Icons.map),
-              label: 'Harita',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.receipt_long_outlined),
-              selectedIcon: Icon(Icons.receipt_long),
-              label: 'Geçmiş',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: 'Profil',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.trending_up_outlined),
-              selectedIcon: Icon(Icons.trending_up),
-              label: 'Yatırım',
-            ),
+          destinations: [
+            for (final tab in AppTab.values)
+              NavigationDestination(
+                icon: Icon(tab.icon),
+                selectedIcon: Icon(tab.selectedIcon),
+                label: tab.label,
+              ),
           ],
         ),
       ),
