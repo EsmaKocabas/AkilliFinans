@@ -1,12 +1,52 @@
 import 'package:flutter/material.dart';
-
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'design_preset.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
+import 'dart:typed_data';
+import 'package:flutter/services.dart';
 
 /// Location-focused responsive page.
-class MapScreen extends StatelessWidget {
+class MapScreen extends StatefulWidget {
   const MapScreen({super.key, required this.preset});
 
   final DesignPreset preset;
+
+  @override
+  State<MapScreen> createState() => _MapScreenState();
+}
+
+class _MapScreenState extends State<MapScreen> {
+  late MapboxMap mapboxMap;
+  late PointAnnotationManager pointAnnotationManager;
+
+  final List<Map<String, dynamic>> atmPoints = [
+    {
+      "name": "ATM 1",
+      "lat": 38.35026165294819,
+      "lng": 27.143345291811872,
+    },
+    {
+      "name": "ATM 2",
+      "lat": 38.44402462482285,
+      "lng": 27.196236184237893,
+    },
+    {
+      "name": "ATM 3",
+      "lat": 38.46826337148145,
+      "lng": 27.12594843737379,
+    },
+    {
+      "name": "ATM 4",
+      "lat": 38.40063699135852,
+      "lng": 27.206825393626733,
+    },
+    {
+      "name": "ATM 5",
+      "lat": 38.39167143857076,
+      "lng": 27.11246466058835,
+    },
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -29,22 +69,92 @@ class MapScreen extends StatelessWidget {
               ),
               child: Stack(
                 children: [
-                  const Center(child: Icon(Icons.map_outlined, size: 72, color: Colors.black54)),
-                  Positioned(
-                    top: 12,
-                    left: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.black,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: const Text('Canlı Harita Önizleme', style: TextStyle(color: Colors.white)),
-                    ),
+              MapWidget(
+                key: const ValueKey("mapWidget"),
+                cameraOptions: CameraOptions(
+                  center: Point(
+                    coordinates: Position(27.143345291811872, 38.35026165294819),
                   ),
-                ],
+                  zoom: 11.0,
+                ),
+                gestureRecognizers: {
+                  Factory<OneSequenceGestureRecognizer>(
+                    () => EagerGestureRecognizer(),
+                  ),
+                },
+
+                onMapCreated: (MapboxMap map) async {
+
+                  final ByteData bytes = await rootBundle.load('assets/icons/atm_marker.png');
+                  final Uint8List imageData = bytes.buffer.asUint8List();
+
+                  mapboxMap = map;
+                  pointAnnotationManager =
+                      await mapboxMap.annotations.createPointAnnotationManager();
+
+                  for (final atm in atmPoints) {
+                    await pointAnnotationManager.create(
+                      PointAnnotationOptions(
+                        geometry: Point(
+                          coordinates: Position(
+                            atm["lng"],
+                            atm["lat"],
+                          ),
+                        ),
+                        image: imageData,
+                        iconSize: 0.2,
+                      ),
+                    );
+                  }
+                },
+              ) ,
+              Positioned(
+                right: 12,
+                bottom: 12,
+                child: Column(
+                  children: [
+
+                    FloatingActionButton.small(
+                      heroTag: "zoomIn",
+                      onPressed: () async {
+                        final zoom =
+                            await mapboxMap?.getCameraState();
+
+                        mapboxMap?.flyTo(
+                          CameraOptions(
+                            zoom: zoom!.zoom + 1,
+                          ),
+                          MapAnimationOptions(duration: 500),
+                        );
+                      },
+                      child: const Icon(Icons.add),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    FloatingActionButton.small(
+                      heroTag: "zoomOut",
+                      onPressed: () async {
+                        final zoom =
+                            await mapboxMap?.getCameraState();
+
+                        mapboxMap?.flyTo(
+                          CameraOptions(
+                            zoom: zoom!.zoom - 1,
+                          ),
+                          MapAnimationOptions(duration: 500),
+                        );
+                      },
+                      child: const Icon(Icons.remove),
+                    ),
+                  ],
+                ),
               ),
+
+              ], // Children
+              ), 
             ),
+        
             const SizedBox(height: 12),
             const _Card(
               title: 'Harita Filtreleri',
@@ -60,16 +170,23 @@ class MapScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            const _Card(
+            _Card(
               title: 'Yakındaki Noktalar',
               child: Column(
-                children: [
-                  _LocationRow(title: 'Akıllı Finans ATM - Ataşehir', distance: '0.8 km'),
-                  _LocationRow(title: 'Akıllı Finans Şube - Kozyatağı', distance: '1.4 km'),
-                  _LocationRow(title: 'Akıllı Finans ATM - Kadıköy', distance: '2.1 km'),
-                ],
+                children: atmPoints.asMap().entries.map((entry) {
+                  final index = entry.key+1;
+                  final atm = entry.value;
+
+                  return _LocationRow(
+                    title: atm["name"],
+                    distance:  '${atm["lat"].toStringAsFixed(4)}, ${atm["lng"].toStringAsFixed(4)}',
+                  );
+                }).toList(),
               ),
             ),
+
+                
+             
             const SizedBox(height: 12),
             const _Card(
               title: 'Rota Önerisi',
