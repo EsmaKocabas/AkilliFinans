@@ -3,6 +3,7 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'design_preset.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
+import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 
@@ -18,9 +19,9 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   MapboxMap? mapboxMap;
-  dynamic pointAnnotationManager;
+  PointAnnotationManager? pointAnnotationManager;
 
-  dynamic userLocationAnnotationManager;
+  PointAnnotationManager? userLocationAnnotationManager;
   geo.Position? currentPosition;
   String? errorMessage;
   bool isLoadingLocation = false;
