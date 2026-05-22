@@ -9,14 +9,54 @@ import 'profile_screen.dart';
 import 'theme/design_tokens.dart';
 import 'transactions_screen.dart';
 
-class AkilliFinansApp extends StatefulWidget {
+
+import 'login_screen.dart';
+import 'register_screen.dart';
+import 'forgot_password_screen.dart';
+
+class AkilliFinansApp extends StatelessWidget {
   const AkilliFinansApp({super.key});
 
   @override
-  State<AkilliFinansApp> createState() => _AkilliFinansAppState();
+  Widget build(BuildContext context) {
+    const preset = appLightPreset;
+
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Akıllı Finans',
+      themeMode: ThemeMode.light,
+      theme: ThemeData(
+        colorScheme: ColorScheme.light(
+          surface: preset.surface,
+          primary: preset.primary,
+          onPrimary: Colors.white,
+          onSurface: preset.onSurface,
+        ),
+        scaffoldBackgroundColor: AppColors.canvas,
+        useMaterial3: true,
+      ),
+      
+      initialRoute: '/login',
+      
+      routes: {
+        '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
+        '/forgot_password': (context) => ForgotPasswordScreen(),
+        '/dashboard': (context) => const MainAppShell(), 
+      },
+    );
+  }
 }
 
-class _AkilliFinansAppState extends State<AkilliFinansApp> {
+
+class MainAppShell extends StatefulWidget {
+  const MainAppShell({super.key});
+
+  @override
+  State<MainAppShell> createState() => _MainAppShellState();
+}
+
+class _MainAppShellState extends State<MainAppShell> {
   AppTab _selectedTab = AppTab.dashboard;
 
   void _navigateToTab(AppTab tab) {
@@ -41,39 +81,25 @@ class _AkilliFinansAppState extends State<AkilliFinansApp> {
       AppTab.investment: const InvestmentScreen(preset: preset),
     };
 
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Akıllı Finans',
-      themeMode: ThemeMode.light,
-      theme: ThemeData(
-        colorScheme: ColorScheme.light(
-          surface: preset.surface,
-          primary: preset.primary,
-          onPrimary: Colors.white,
-          onSurface: preset.onSurface,
-        ),
-        scaffoldBackgroundColor: AppColors.canvas,
-        useMaterial3: true,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Akıllı Finans'),
+        automaticallyImplyLeading: false, 
       ),
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text('Akıllı Finans'),
-        ),
-        body: pages[_selectedTab]!,
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _selectedTab.index,
-          onDestinationSelected: (value) {
-            _navigateToTab(AppTab.values[value]);
-          },
-          destinations: [
-            for (final tab in AppTab.values)
-              NavigationDestination(
-                icon: Icon(tab.icon),
-                selectedIcon: Icon(tab.selectedIcon),
-                label: tab.label,
-              ),
-          ],
-        ),
+      body: pages[_selectedTab]!,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedTab.index,
+        onDestinationSelected: (value) {
+          _navigateToTab(AppTab.values[value]);
+        },
+        destinations: [
+          for (final tab in AppTab.values)
+            NavigationDestination(
+              icon: Icon(tab.icon),
+              selectedIcon: Icon(tab.selectedIcon),
+              label: tab.label,
+            ),
+        ],
       ),
     );
   }
