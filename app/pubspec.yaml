@@ -22,8 +22,8 @@ dev_dependencies:
   flutter_lints: ^4.0.0
 
 flutter:
- uses-material-design: true
- assets:
-    - assets/icons/atm_marker.png
+  uses-material-design: true
+  assets:
+    - .env
     - assets/icons/user_location.png
-  
+    - assets/icons/atm_marker.png
