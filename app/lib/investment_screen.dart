@@ -1,15 +1,104 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 import 'design_preset.dart';
+import 'services/session_service.dart';
 
 /// Investment planning page with modern responsive sections.
-class InvestmentScreen extends StatelessWidget {
+class InvestmentScreen extends StatefulWidget {
   const InvestmentScreen({super.key, required this.preset});
 
   final DesignPreset preset;
 
   @override
+  State<InvestmentScreen> createState() => _InvestmentScreenState();
+}
+
+class _InvestmentScreenState extends State<InvestmentScreen> {
+  bool _isLoading = true;
+  String? _error;
+  double _totalInvestment = 0.0;
+  List<dynamic> _allocation = [];
+  List<dynamic> _suggestions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
+  }
+
+  Future<void> _fetchData() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final portfolioUrl = Uri.parse('${AppSession.baseUrl}/api/investments/portfolio');
+      final suggestionsUrl = Uri.parse('${AppSession.baseUrl}/api/investments/suggestions');
+
+      final portfolioRes = await http.get(portfolioUrl, headers: AppSession.headers);
+      final suggestionsRes = await http.get(suggestionsUrl, headers: AppSession.headers);
+
+      if (portfolioRes.statusCode == 200 && suggestionsRes.statusCode == 200) {
+        final portfolioData = jsonDecode(portfolioRes.body)['data'];
+        final suggestionsData = jsonDecode(suggestionsRes.body)['data'];
+
+        if (mounted) {
+          setState(() {
+            _totalInvestment = (portfolioData['totalInvestment'] as num).toDouble();
+            _allocation = portfolioData['allocation'] ?? [];
+            _suggestions = suggestionsData ?? [];
+            _isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _error = 'Yatırım verileri alınamadı.';
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Sunucu bağlantı hatası: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 48),
+              const SizedBox(height: 12),
+              Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 16), textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _fetchData,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Tekrar Dene'),
+              )
+            ],
+          ),
+        ),
+      );
+    }
+
     return Container(
       color: const Color(0xFFF5F5F5),
       child: SafeArea(
@@ -26,38 +115,43 @@ class InvestmentScreen extends StatelessWidget {
                 color: Colors.black,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Toplam Yatırım', style: TextStyle(color: Colors.white70)),
-                  SizedBox(height: 6),
-                  Text('₺124.900', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
-                  SizedBox(height: 4),
-                  Text('Bu ay getiri: +%4.8', style: TextStyle(color: Colors.white70)),
+                  const Text('Toplam Yatırım', style: TextStyle(color: Colors.white70)),
+                  const SizedBox(height: 6),
+                  Text('₺${_totalInvestment.round()}', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  const Text('Bu ay getiri: +%4.8', style: TextStyle(color: Colors.white70)),
                 ],
               ),
             ),
             const SizedBox(height: 12),
-            const _InvestCard(
+            _InvestCard(
               title: 'Portföy Dağılımı',
-              child: Column(
-                children: [
-                  _AllocRow(label: 'Fonlar', ratio: 0.45),
-                  _AllocRow(label: 'Hisse', ratio: 0.30),
-                  _AllocRow(label: 'Altın', ratio: 0.15),
-                  _AllocRow(label: 'Nakit', ratio: 0.10),
-                ],
-              ),
+              child: _allocation.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text('Henüz yatırımınız bulunmuyor.', style: TextStyle(color: Colors.grey)),
+                    )
+                  : Column(
+                      children: _allocation.map((item) {
+                        final label = '${item['symbol']} (${item['assetType'].toString().toUpperCase()})';
+                        final ratio = (item['ratio'] as num).toDouble();
+                        return _AllocRow(label: label, ratio: ratio);
+                      }).toList(),
+                    ),
             ),
             const SizedBox(height: 12),
-            const _InvestCard(
+            _InvestCard(
               title: 'Öneriler',
               child: Column(
-                children: [
-                  _SuggestionRow(title: 'Düşük riskli fon sepeti', subtitle: 'Beklenen yıllık getiri: %28'),
-                  _SuggestionRow(title: 'Altın ağırlığını %5 artır', subtitle: 'Volatiliteyi dengelemek için'),
-                  _SuggestionRow(title: 'Acil durum fonu oluştur', subtitle: '3 aylık gider hedefleniyor'),
-                ],
+                children: _suggestions.map((item) {
+                  return _SuggestionRow(
+                    title: item['title'] ?? '',
+                    subtitle: item['subtitle'] ?? '',
+                  );
+                }).toList(),
               ),
             ),
             const SizedBox(height: 12),
@@ -71,7 +165,7 @@ class InvestmentScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            const _TradePanelCard(),
+            _TradePanelCard(onTradeExecuted: _fetchData),
           ],
         ),
       ),
@@ -119,7 +213,8 @@ class _AllocRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
-          SizedBox(width: 70, child: Text(label)),
+          SizedBox(width: 100, child: Text(label, style: const TextStyle(fontSize: 13, overflow: TextOverflow.ellipsis))),
+          const SizedBox(width: 4),
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
@@ -164,7 +259,9 @@ enum _TradeAssetType { fon, hisse, altin, gumus }
 enum _TradeActionType { al, sat }
 
 class _TradePanelCard extends StatefulWidget {
-  const _TradePanelCard();
+  const _TradePanelCard({required this.onTradeExecuted});
+
+  final VoidCallback onTradeExecuted;
 
   @override
   State<_TradePanelCard> createState() => _TradePanelCardState();
@@ -175,6 +272,7 @@ class _TradePanelCardState extends State<_TradePanelCard> {
   _TradeActionType _actionType = _TradeActionType.al;
   final TextEditingController _symbolController = TextEditingController();
   final TextEditingController _amountController = TextEditingController();
+  bool _submitting = false;
 
   @override
   void dispose() {
@@ -183,14 +281,6 @@ class _TradePanelCardState extends State<_TradePanelCard> {
     super.dispose();
   }
 
-  String _assetLabel(_TradeAssetType assetType) {
-    return switch (assetType) {
-      _TradeAssetType.fon => 'Fon',
-      _TradeAssetType.hisse => 'Hisse',
-      _TradeAssetType.altin => 'Altın',
-      _TradeAssetType.gumus => 'Gümüş',
-    };
-  }
 
   String _symbolLabel(_TradeAssetType assetType) {
     return switch (assetType) {
@@ -217,21 +307,79 @@ class _TradePanelCardState extends State<_TradePanelCard> {
     };
   }
 
-  void _submitTrade() {
+  Future<void> _submitTrade() async {
     final symbol = _symbolController.text.trim();
-    final amount = _amountController.text.trim();
-    if (symbol.isEmpty || amount.isEmpty) {
+    final amountText = _amountController.text.trim();
+    if (symbol.isEmpty || amountText.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Lütfen ürün kodu ve tutar/adet alanını doldurun.')),
       );
       return;
     }
 
-    final assetLabel = _assetLabel(_assetType);
-    final actionLabel = _actionType == _TradeActionType.al ? 'alım' : 'satım';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$assetLabel $actionLabel emri alındı: $symbol · $amount (demo).')),
-    );
+    final amountVal = double.tryParse(amountText);
+    if (amountVal == null || amountVal <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Geçerli bir tutar/adet girin.')),
+      );
+      return;
+    }
+
+    setState(() => _submitting = true);
+
+    try {
+      final url = Uri.parse('${AppSession.baseUrl}/api/investments/trade');
+      final assetTypeStr = switch (_assetType) {
+        _TradeAssetType.fon => 'fon',
+        _TradeAssetType.hisse => 'hisse',
+        _TradeAssetType.altin => 'altin',
+        _TradeAssetType.gumus => 'gumus',
+      };
+      final actionStr = _actionType == _TradeActionType.al ? 'al' : 'sat';
+
+      final response = await http.post(
+        url,
+        headers: AppSession.headers,
+        body: jsonEncode({
+          'assetType': assetTypeStr,
+          'action': actionStr,
+          'symbol': symbol,
+          'amount': amountVal,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        final remainingBudget = (body['data']['remainingBudget'] as num).toDouble();
+        AppSession.budget = remainingBudget;
+
+        if (mounted) {
+          _symbolController.clear();
+          _amountController.clear();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(body['message'] ?? 'İşlem tamamlandı.')),
+          );
+          widget.onTradeExecuted();
+        }
+      } else {
+        final err = jsonDecode(response.body)['message'] ?? 'İşlem başarısız.';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Hata: $err')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Bağlantı hatası: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
   }
 
   @override
@@ -243,7 +391,7 @@ class _TradePanelCardState extends State<_TradePanelCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Yatırım ürününü seçip hızlıca alım veya satım emri oluşturabilirsiniz (demo).',
+            'Yatırım ürününü seçip hızlıca alım veya satım emri oluşturabilirsiniz.',
             style: TextStyle(color: Color(0xFF616161)),
           ),
           const SizedBox(height: 12),
@@ -329,13 +477,19 @@ class _TradePanelCardState extends State<_TradePanelCard> {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: _submitTrade,
+              onPressed: _submitting ? null : _submitTrade,
               style: FilledButton.styleFrom(
                 backgroundColor: isBuy ? Colors.black : const Color(0xFF37474F),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              icon: Icon(isBuy ? Icons.add_shopping_cart_outlined : Icons.sell_outlined),
+              icon: _submitting
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : Icon(isBuy ? Icons.add_shopping_cart_outlined : Icons.sell_outlined),
               label: Text(isBuy ? 'Alım Emri Ver' : 'Satım Emri Ver'),
             ),
           ),
