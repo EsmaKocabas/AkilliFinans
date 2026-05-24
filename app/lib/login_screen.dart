@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:provider/provider.dart';
 import 'services/session_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -27,7 +28,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final response = await http.post(
         Uri.parse('${AppSession.baseUrl}/api/auth/login'),
-        headers: AppSession.headers,
+        headers: const {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': _emailController.text.trim(),
           'password': _passwordController.text,
@@ -37,16 +38,21 @@ class _LoginScreenState extends State<LoginScreen> {
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        AppSession.token = responseData['token'];
-        AppSession.userId = responseData['user']['id'];
-        AppSession.userName = responseData['user']['fullName'];
-        AppSession.userEmail = responseData['user']['email'];
-        AppSession.budget = (responseData['user']['budget'] as num).toDouble();
+        final user = responseData['user'] as Map<String, dynamic>;
+        if (!mounted) return;
+        final session = context.read<AppSession>();
+        session.signIn(
+          token: responseData['token'] as String,
+          userId: user['id'] as int,
+          fullName: user['fullName'] as String,
+          email: user['email'] as String,
+          budget: (user['budget'] as num).toDouble(),
+        );
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Giriş başarılı! Hoş geldiniz, ${AppSession.userName}.'),
+              content: Text('Giriş başarılı! Hoş geldiniz, ${session.userName}.'),
               backgroundColor: Colors.green,
             ),
           );

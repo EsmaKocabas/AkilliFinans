@@ -11,6 +11,7 @@ import 'map_screen.dart';
 import 'profile_screen.dart';
 import 'theme/design_tokens.dart';
 import 'transactions_screen.dart';
+import 'package:provider/provider.dart';
 import 'services/session_service.dart';
 
 import 'login_screen.dart';
@@ -77,7 +78,7 @@ class _MainAppShellState extends State<MainAppShell> {
     _fetchNotifications();
     
     // Auto-fetch notifications when the budget state changes (e.g. after transaction or trade)
-    AppSession.budgetNotifier.addListener(_onBudgetChanged);
+    AppSession.instance.addListener(_onBudgetChanged);
     
     // Poll for new notifications every 15 seconds
     _pollingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
@@ -89,7 +90,7 @@ class _MainAppShellState extends State<MainAppShell> {
 
   @override
   void dispose() {
-    AppSession.budgetNotifier.removeListener(_onBudgetChanged);
+    AppSession.instance.removeListener(_onBudgetChanged);
     _pollingTimer?.cancel();
     super.dispose();
   }
@@ -99,10 +100,12 @@ class _MainAppShellState extends State<MainAppShell> {
   }
 
   Future<void> _fetchNotifications() async {
-    if (AppSession.token == null) return;
+    if (!mounted) return;
+    final session = context.read<AppSession>();
+    if (!session.isLoggedIn) return;
     try {
       final url = Uri.parse('${AppSession.baseUrl}/api/notifications');
-      final res = await http.get(url, headers: AppSession.headers);
+      final res = await http.get(url, headers: session.headers);
       if (res.statusCode == 200) {
         final decoded = jsonDecode(res.body);
         if (decoded['status'] == 'success') {
@@ -119,9 +122,11 @@ class _MainAppShellState extends State<MainAppShell> {
   }
 
   Future<void> _markAsRead(int notifId) async {
+    if (!mounted) return;
+    final session = context.read<AppSession>();
     try {
       final url = Uri.parse('${AppSession.baseUrl}/api/notifications/$notifId/read');
-      final res = await http.put(url, headers: AppSession.headers);
+      final res = await http.put(url, headers: session.headers);
       if (res.statusCode == 200) {
         if (mounted) {
           setState(() {
@@ -138,9 +143,11 @@ class _MainAppShellState extends State<MainAppShell> {
   }
 
   Future<void> _markAllAsRead() async {
+    if (!mounted) return;
+    final session = context.read<AppSession>();
     try {
       final url = Uri.parse('${AppSession.baseUrl}/api/notifications/read-all');
-      final res = await http.put(url, headers: AppSession.headers);
+      final res = await http.put(url, headers: session.headers);
       if (res.statusCode == 200) {
         if (mounted) {
           setState(() {

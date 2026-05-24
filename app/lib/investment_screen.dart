@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:provider/provider.dart';
 
 import 'design_preset.dart';
 import 'services/session_service.dart';
@@ -34,12 +35,14 @@ class _InvestmentScreenState extends State<InvestmentScreen> {
       _error = null;
     });
 
+    if (!mounted) return;
+    final session = context.read<AppSession>();
     try {
       final portfolioUrl = Uri.parse('${AppSession.baseUrl}/api/investments/portfolio');
       final suggestionsUrl = Uri.parse('${AppSession.baseUrl}/api/investments/suggestions');
 
-      final portfolioRes = await http.get(portfolioUrl, headers: AppSession.headers);
-      final suggestionsRes = await http.get(suggestionsUrl, headers: AppSession.headers);
+      final portfolioRes = await http.get(portfolioUrl, headers: session.headers);
+      final suggestionsRes = await http.get(suggestionsUrl, headers: session.headers);
 
       if (portfolioRes.statusCode == 200 && suggestionsRes.statusCode == 200) {
         final portfolioData = jsonDecode(portfolioRes.body)['data'];
@@ -327,6 +330,8 @@ class _TradePanelCardState extends State<_TradePanelCard> {
 
     setState(() => _submitting = true);
 
+    if (!mounted) return;
+    final session = context.read<AppSession>();
     try {
       final url = Uri.parse('${AppSession.baseUrl}/api/investments/trade');
       final assetTypeStr = switch (_assetType) {
@@ -339,7 +344,7 @@ class _TradePanelCardState extends State<_TradePanelCard> {
 
       final response = await http.post(
         url,
-        headers: AppSession.headers,
+        headers: session.headers,
         body: jsonEncode({
           'assetType': assetTypeStr,
           'action': actionStr,
@@ -351,7 +356,7 @@ class _TradePanelCardState extends State<_TradePanelCard> {
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
         final remainingBudget = (body['data']['remainingBudget'] as num).toDouble();
-        AppSession.budget = remainingBudget;
+        session.updateBudget(remainingBudget);
 
         if (mounted) {
           _symbolController.clear();

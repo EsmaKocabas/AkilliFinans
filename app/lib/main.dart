@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'akilli_finans_app.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
+import 'services/session_service.dart';
+
 /// App entry point.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,5 +16,10 @@ void main() async {
   } else {
     mapbox.MapboxOptions.setAccessToken("pk.mock-token");
   }
-  runApp(const AkilliFinansApp());
+  runApp(
+    ChangeNotifierProvider<AppSession>.value(
+      value: AppSession.instance,
+      child: const AkilliFinansApp(),
+    ),
+  );
 }

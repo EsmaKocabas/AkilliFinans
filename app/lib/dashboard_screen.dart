@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:provider/provider.dart';
 
 import 'app_navigation.dart';
 import 'dashboard_quick_action_sheets.dart';
@@ -39,13 +40,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    AppSession.budgetNotifier.addListener(_onBudgetChanged);
+    AppSession.instance.addListener(_onBudgetChanged);
     _fetchDashboardData();
   }
 
   @override
   void dispose() {
-    AppSession.budgetNotifier.removeListener(_onBudgetChanged);
+    AppSession.instance.removeListener(_onBudgetChanged);
     super.dispose();
   }
 
@@ -54,12 +55,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _fetchDashboardData() async {
+    if (!mounted) return;
+    final session = context.read<AppSession>();
     try {
       final statsUrl = Uri.parse('${AppSession.baseUrl}/api/dashboard/stats');
       final txsUrl = Uri.parse('${AppSession.baseUrl}/api/transactions');
 
-      final statsResponse = await http.get(statsUrl, headers: AppSession.headers);
-      final txsResponse = await http.get(txsUrl, headers: AppSession.headers);
+      final statsResponse = await http.get(statsUrl, headers: session.headers);
+      final txsResponse = await http.get(txsUrl, headers: session.headers);
 
       if (statsResponse.statusCode == 200 && txsResponse.statusCode == 200) {
         final statsBody = jsonDecode(statsResponse.body)['data'];
@@ -70,8 +73,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _totalAsset = (statsBody['totalAsset'] as num).toDouble();
             
             // Proactively sync session budget so other listening widgets update
-            if (AppSession.budgetNotifier.value != _totalAsset) {
-              AppSession.budgetNotifier.value = _totalAsset;
+            if (session.budget != _totalAsset) {
+              session.updateBudget(_totalAsset);
             }
 
             _income = (statsBody['income'] as num).toDouble();
@@ -135,9 +138,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
-    return ValueListenableBuilder<double>(
-      valueListenable: AppSession.budgetNotifier,
-      builder: (context, currentBudget, _) {
+    return Consumer<AppSession>(
+      builder: (context, session, _) {
+        final currentBudget = session.budget;
         return ScrollableScreenShell(
           wideBreakpoint: 900,
           children: [

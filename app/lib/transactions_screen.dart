@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:provider/provider.dart';
 
 import 'design_preset.dart';
 import 'services/session_service.dart';
@@ -131,9 +132,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       _error = null;
     });
 
+    if (!mounted) return;
+    final session = context.read<AppSession>();
     try {
       final url = Uri.parse('${AppSession.baseUrl}/api/transactions');
-      final response = await http.get(url, headers: AppSession.headers);
+      final response = await http.get(url, headers: session.headers);
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);

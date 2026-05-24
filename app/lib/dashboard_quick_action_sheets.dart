@@ -89,9 +89,9 @@ abstract final class DashboardQuickActionSheets {
                         controller: scroll,
                         padding: EdgeInsets.fromLTRB(20, 0, 20, 12 + pad),
                         children: [
-                          _invoiceRow(ctx, title: 'Elektrik Mart', subtitle: 'Son gün yarın · Tedarikçi A', trailing: '-₺780'),
-                          _invoiceRow(ctx, title: 'Doğalgaz', subtitle: 'Otomatik ödeme bekliyor', trailing: '-₺412'),
-                          _invoiceRow(ctx, title: 'İnternet / TV', subtitle: 'Ay sonu kesim', trailing: '-₺219'),
+                          _invoiceRow(scaffoldContext, title: 'Elektrik Mart', subtitle: 'Son gün yarın · Tedarikçi A', trailing: '-₺780'),
+                          _invoiceRow(scaffoldContext, title: 'Doğalgaz', subtitle: 'Otomatik ödeme bekliyor', trailing: '-₺412'),
+                          _invoiceRow(scaffoldContext, title: 'İnternet / TV', subtitle: 'Ay sonu kesim', trailing: '-₺219'),
                           const SizedBox(height: AppSpacing.md),
                           OutlinedButton.icon(
                             onPressed: () {
@@ -122,12 +122,17 @@ abstract final class DashboardQuickActionSheets {
   }
 
   static Widget _invoiceRow(
-    BuildContext ctx, {
+    BuildContext scaffoldContext, {
     required String title,
     required String subtitle,
     required String trailing,
   }) {
-    return _InvoiceRowContainer(title: title, subtitle: subtitle, trailing: trailing);
+    return _InvoiceRowContainer(
+      scaffoldContext: scaffoldContext,
+      title: title,
+      subtitle: subtitle,
+      trailing: trailing,
+    );
   }
 
   static Future<void> showHedefOlustur(
@@ -194,7 +199,7 @@ class _ParaYatirSheetState extends State<_ParaYatirSheet> {
       final url = Uri.parse('${AppSession.baseUrl}/api/transactions');
       final response = await http.post(
         url,
-        headers: AppSession.headers,
+        headers: AppSession.read(widget.scaffoldContext).headers,
         body: jsonEncode({
           'title': 'Para Yükleme',
           'category': 'Gelir',
@@ -207,7 +212,7 @@ class _ParaYatirSheetState extends State<_ParaYatirSheet> {
       if (response.statusCode == 201) {
         final body = jsonDecode(response.body);
         final newBudget = (body['userBudget'] as num).toDouble();
-        AppSession.budget = newBudget;
+        AppSession.read(widget.scaffoldContext).updateBudget(newBudget);
 
         if (mounted) {
           Navigator.pop(context);
@@ -376,7 +381,7 @@ class _TransferSheetState extends State<_TransferSheet> {
       
       final response = await http.post(
         url,
-        headers: AppSession.headers,
+        headers: AppSession.read(widget.scaffoldContext).headers,
         body: jsonEncode({
           'title': title,
           'category': 'Transfer',
@@ -389,7 +394,7 @@ class _TransferSheetState extends State<_TransferSheet> {
       if (response.statusCode == 201) {
         final body = jsonDecode(response.body);
         final newBudget = (body['userBudget'] as num).toDouble();
-        AppSession.budget = newBudget;
+        AppSession.read(widget.scaffoldContext).updateBudget(newBudget);
 
         if (mounted) {
           Navigator.pop(context);
@@ -635,11 +640,13 @@ class _PctSliderRowState extends State<_PctSliderRow> {
 
 class _InvoiceRowContainer extends StatefulWidget {
   const _InvoiceRowContainer({
+    required this.scaffoldContext,
     required this.title,
     required this.subtitle,
     required this.trailing,
   });
 
+  final BuildContext scaffoldContext;
   final String title;
   final String subtitle;
   final String trailing;
@@ -662,7 +669,7 @@ class _InvoiceRowContainerState extends State<_InvoiceRowContainer> {
       final url = Uri.parse('${AppSession.baseUrl}/api/transactions');
       final response = await http.post(
         url,
-        headers: AppSession.headers,
+        headers: AppSession.read(widget.scaffoldContext).headers,
         body: jsonEncode({
           'title': '${widget.title} Faturası',
           'category': 'Fatura',
@@ -675,7 +682,7 @@ class _InvoiceRowContainerState extends State<_InvoiceRowContainer> {
       if (response.statusCode == 201) {
         final body = jsonDecode(response.body);
         final newBudget = (body['userBudget'] as num).toDouble();
-        AppSession.budget = newBudget;
+        AppSession.read(widget.scaffoldContext).updateBudget(newBudget);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
