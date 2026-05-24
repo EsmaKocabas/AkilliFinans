@@ -6,6 +6,9 @@ import 'package:flutter/gestures.dart';
 import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart' as geo;
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'services/session_service.dart';
 
 /// Location-focused responsive page.
 class MapScreen extends StatefulWidget {
@@ -20,64 +23,180 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   MapboxMap? mapboxMap;
   PointAnnotationManager? pointAnnotationManager;
-
   PointAnnotationManager? userLocationAnnotationManager;
   geo.Position? currentPosition;
   String? errorMessage;
   bool isLoadingLocation = false;
 
-  final List<Map<String, dynamic>> atmPoints = [
-    {
-      "name": "ATM 1",
-      "lat": 38.35026165294819,
-      "lng": 27.143345291811872,
-    },
-    {
-      "name": "ATM 2",
-      "lat": 38.44402462482285,
-      "lng": 27.196236184237893,
-    },
-    {
-      "name": "ATM 3",
-      "lat": 38.46826337148145,
-      "lng": 27.12594843737379,
-    },
-    {
-      "name": "ATM 4",
-      "lat": 38.40063699135852,
-      "lng": 27.206825393626733,
-    },
-    {
-      "name": "ATM 5",
-      "lat": 38.39167143857076,
-      "lng": 27.11246466058835,
-    },
-  ];
-
+  List<Map<String, dynamic>> atmPoints = [];
   List<Map<String, dynamic>> nearbyATMs = [];
 
-void calculateNearbyATMs() {
-      if (currentPosition == null) return;
-        final List<Map<String, dynamic>> calculatedList = atmPoints.map((atm) {
-        final distance = geo.Geolocator.distanceBetween(
-          currentPosition!.latitude,
-          currentPosition!.longitude,
-          atm["lat"],
-          atm["lng"],
-        );
-        return {
-          ...atm,
-          "distance": distance,
-        };
-      }).toList();
+  int _kValue = 3;
+  bool _isOptimizing = false;
+  List<Map<String, dynamic>> _optimizedCenters = [];
 
-      calculatedList.sort((a,b) {
-        return a["distance"].compareTo(b["distance"]);
-      });
-      setState(() {
-          nearbyATMs = calculatedList;
-        });
+  Future<void> _fetchCandidates() async {
+    try {
+      final url = Uri.parse('${AppSession.baseUrl}/api/map/atms');
+      final response = await http.get(url, headers: AppSession.headers);
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        final List<dynamic> list = body['data'];
+
+        final mapped = list.map((item) => {
+          "name": item['location_name'] ?? 'Aday ATM',
+          "lat": (item['latitude'] as num).toDouble(),
+          "lng": (item['longitude'] as num).toDouble(),
+        }).toList();
+
+        if (mounted) {
+          setState(() {
+            atmPoints = mapped;
+          });
+          await _updateMapMarkers(mapped);
+        }
+      }
+    } catch (e) {
+      debugPrint('Candidate ATMs loading error: $e');
     }
+  }
+
+  Future<void> _fetchNearbyATMs(double lat, double lng) async {
+    try {
+      final url = Uri.parse('${AppSession.baseUrl}/api/map/nearby?lat=$lat&lng=$lng');
+      final response = await http.get(url, headers: AppSession.headers);
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        final List<dynamic> list = body['data'];
+
+        if (mounted) {
+          setState(() {
+            nearbyATMs = list.map((item) => {
+              "name": item['location_name'] ?? 'Bilinmeyen ATM',
+              "lat": (item['latitude'] as num).toDouble(),
+              "lng": (item['longitude'] as num).toDouble(),
+              "distance": (item['distance'] as num).toDouble(),
+            }).toList();
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Nearby ATMs loading error: $e');
+    }
+  }
+
+  Future<void> _updateMapMarkers(List<Map<String, dynamic>> points, {bool isOptimized = false}) async {
+    if (mapboxMap == null || pointAnnotationManager == null) return;
+    
+    await pointAnnotationManager!.deleteAll();
+
+    final ByteData bytes = await rootBundle.load('assets/icons/atm_marker.png');
+    final Uint8List imageData = bytes.buffer.asUint8List();
+
+    for (final pt in points) {
+      await pointAnnotationManager!.create(
+        PointAnnotationOptions(
+          geometry: Point(
+            coordinates: Position(
+              pt["lng"],
+              pt["lat"],
+            ),
+          ),
+          image: imageData,
+          iconSize: isOptimized ? 0.28 : 0.2,
+        ),
+      );
+    }
+  }
+
+  Future<void> _runOptimization() async {
+    setState(() {
+      _isOptimizing = true;
+      errorMessage = null;
+    });
+
+    try {
+      final url = Uri.parse('${AppSession.baseUrl}/api/map/optimize');
+      final response = await http.post(
+        url,
+        headers: AppSession.headers,
+        body: jsonEncode({
+          'kumeSayisi': _kValue,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        if (body['status'] == 'success') {
+          final List<dynamic> list = body['data'];
+          final List<Map<String, dynamic>> mapped = list.map((item) {
+            final coord = item['koordinat'];
+            return {
+              "name": item['atm_id'] ?? 'Yeni ATM',
+              "lat": (coord['lat'] as num).toDouble(),
+              "lng": (coord['lng'] as num).toDouble(),
+              "cost": (item['maliyet'] as num).toDouble(),
+            };
+          }).toList();
+
+          if (mounted) {
+            setState(() {
+              _optimizedCenters = mapped;
+              _isOptimizing = false;
+            });
+
+            await _updateMapMarkers(
+              mapped.map((e) => {"lat": e["lat"], "lng": e["lng"]}).toList(),
+              isOptimized: true,
+            );
+
+            if (mapped.isNotEmpty && mapboxMap != null) {
+              mapboxMap!.flyTo(
+                CameraOptions(
+                  center: Point(
+                    coordinates: Position(
+                      mapped[0]["lng"],
+                      mapped[0]["lat"],
+                    ),
+                  ),
+                  zoom: 12.0,
+                ),
+                MapAnimationOptions(duration: 1000),
+              );
+            }
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('K-Means tabanlı en verimli ATM lokasyonları hesaplandı!')),
+            );
+          }
+        } else {
+          setState(() {
+            _isOptimizing = false;
+            errorMessage = body['message'] ?? 'Optimizasyon başarısız.';
+          });
+        }
+      } else {
+        setState(() {
+          _isOptimizing = false;
+          errorMessage = 'Sunucu optimizasyon hatası (Kod: ${response.statusCode})';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isOptimizing = false;
+        errorMessage = 'Bağlantı hatası: $e';
+      });
+    }
+  }
+
+  Future<void> _resetOptimization() async {
+    setState(() {
+      _optimizedCenters = [];
+    });
+    await _fetchCandidates();
+  }
 
   Future<void> getUserLocation() async {
     try {
@@ -112,56 +231,56 @@ void calculateNearbyATMs() {
         return;
       }
       final position = await geo.Geolocator.getCurrentPosition();
-      setState(() {
-        currentPosition = position;
-        isLoadingLocation = false;
-      });
-      calculateNearbyATMs();
+      if (mounted) {
+        setState(() {
+          currentPosition = position;
+          isLoadingLocation = false;
+        });
+      }
+      await _fetchNearbyATMs(position.latitude, position.longitude);
+      
       if (mapboxMap == null) return; 
     
-        final ByteData bytes = await rootBundle.load('assets/icons/user_location.png');
-        final Uint8List imageData = bytes.buffer.asUint8List();
+      final ByteData bytes = await rootBundle.load('assets/icons/user_location.png');
+      final Uint8List imageData = bytes.buffer.asUint8List();
 
-        final map = mapboxMap!;
-        userLocationAnnotationManager ??=
-            await map.annotations.createPointAnnotationManager();
+      final map = mapboxMap!;
+      userLocationAnnotationManager ??=
+          await map.annotations.createPointAnnotationManager();
 
-        await userLocationAnnotationManager!.create(
-          PointAnnotationOptions(
-            geometry: Point(
-              coordinates: Position(
-                position.longitude,
-                position.latitude,
-              ),
+      await userLocationAnnotationManager!.create(
+        PointAnnotationOptions(
+          geometry: Point(
+            coordinates: Position(
+              position.longitude,
+              position.latitude,
             ),
-            image: imageData,
-            iconSize: 0.25,
           ),
-        );
+          image: imageData,
+          iconSize: 0.25,
+        ),
+      );
 
-        map.flyTo(
-          CameraOptions(
-            center: Point(
-              coordinates: Position(
-                position.longitude,
-                position.latitude,
-              ),
+      map.flyTo(
+        CameraOptions(
+          center: Point(
+            coordinates: Position(
+              position.longitude,
+              position.latitude,
             ),
-            zoom: 14.0,
           ),
-          MapAnimationOptions(duration: 1000),
-        );
+          zoom: 13.0,
+        ),
+        MapAnimationOptions(duration: 1000),
+      );
     } catch (e) {
-      setState(() {
-        errorMessage = 'Konum alınırken hata oluştu: $e';
-        isLoadingLocation = false;
-      });
+      if (mounted) {
+        setState(() {
+          errorMessage = 'Konum alınırken hata oluştu: $e';
+          isLoadingLocation = false;
+        });
+      }
     }
-  }
-
-  @override
-  void initState() {
-    super.initState();
   }
 
   @override
@@ -185,95 +304,67 @@ void calculateNearbyATMs() {
               ),
               child: Stack(
                 children: [
-              MapWidget(
-                key: const ValueKey("mapWidget"),
-                cameraOptions: CameraOptions(
-                  center: Point(
-                    coordinates: Position(27.143345291811872, 38.35026165294819),
-                  ),
-                  zoom: 11.0,
-                ),
-                gestureRecognizers: {
-                  Factory<OneSequenceGestureRecognizer>(
-                    () => EagerGestureRecognizer(),
-                  ),
-                },
-
-                onMapCreated: (MapboxMap map) async {
-
-                  final ByteData bytes = await rootBundle.load('assets/icons/atm_marker.png');
-                  final Uint8List imageData = bytes.buffer.asUint8List();
-
-                    mapboxMap = map;
-                    pointAnnotationManager =
-                      await map.annotations.createPointAnnotationManager();
-
-                  for (final atm in atmPoints) {
-                    await pointAnnotationManager!.create(
-                      PointAnnotationOptions(
-                        geometry: Point(
-                          coordinates: Position(
-                            atm["lng"],
-                            atm["lat"],
-                          ),
+                  MapWidget(
+                    key: const ValueKey("mapWidget"),
+                    cameraOptions: CameraOptions(
+                      center: Point(
+                        coordinates: Position(
+                          27.143345291811872,
+                          38.35026165294819,
                         ),
-                        image: imageData,
-                        iconSize: 0.2,
                       ),
-                    );
-                  }
-                  await getUserLocation();
-                },
-              ) ,
-              Positioned(
-                right: 12,
-                bottom: 12,
-                child: Column(
-                  children: [
+                      zoom: 11.0,
+                    ),
+                    gestureRecognizers: {
+                      Factory<OneSequenceGestureRecognizer>(
+                        () => EagerGestureRecognizer(),
+                      ),
+                    },
+                    onMapCreated: (MapboxMap map) async {
+                      mapboxMap = map;
+                      pointAnnotationManager =
+                          await map.annotations.createPointAnnotationManager();
 
-                    FloatingActionButton.small(
-                      heroTag: "zoomIn",
-                      onPressed: () async {
-                        if (mapboxMap == null) return;
-
-                        final zoom = await mapboxMap!.getCameraState();
-
-                        mapboxMap!.flyTo(
-                        CameraOptions(
-                          zoom: zoom.zoom + 1,
+                      await _fetchCandidates();
+                      await getUserLocation();
+                    },
+                  ),
+                  Positioned(
+                    right: 12,
+                    bottom: 12,
+                    child: Column(
+                      children: [
+                        FloatingActionButton.small(
+                          heroTag: "zoomIn",
+                          onPressed: () async {
+                            if (mapboxMap == null) return;
+                            final zoom = await mapboxMap!.getCameraState();
+                            mapboxMap!.flyTo(
+                              CameraOptions(zoom: zoom.zoom + 1),
+                              MapAnimationOptions(duration: 500),
+                            );
+                          },
+                          child: const Icon(Icons.add),
                         ),
-                        MapAnimationOptions(duration: 500),
-                      );
-                      },
-                      child: const Icon(Icons.add),
+                        const SizedBox(height: 8),
+                        FloatingActionButton.small(
+                          heroTag: "zoomOut",
+                          onPressed: () async {
+                            if (mapboxMap == null) return;
+                            final zoom = await mapboxMap!.getCameraState();
+                            mapboxMap!.flyTo(
+                              CameraOptions(zoom: zoom.zoom - 1),
+                              MapAnimationOptions(duration: 500),
+                            );
+                          },
+                          child: const Icon(Icons.remove),
+                        ),
+                      ],
                     ),
-
-                    const SizedBox(height: 8),
-
-                    FloatingActionButton.small(
-                      heroTag: "zoomOut",
-                      onPressed: () async {
-                        if (mapboxMap == null) return;
-
-                        final zoom = await mapboxMap!.getCameraState();
-
-                        mapboxMap!.flyTo(
-                          CameraOptions(
-                            zoom: zoom.zoom - 1,
-                          ),
-                          MapAnimationOptions(duration: 500),
-                        );
-                      },
-                      child: const Icon(Icons.remove),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-
-              ], // Children
-              ), 
             ),
-        
             const SizedBox(height: 12),
             if (errorMessage != null) 
               Container(
@@ -290,6 +381,87 @@ void calculateNearbyATMs() {
                   ],
                 ),
               ),
+            const SizedBox(height: 12),
+            _Card(
+              title: 'ATM Optimizasyonu (K-Means)',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Python veri analitiği servisini kullanarak bölgedeki işlem hacmine göre en ideal yeni ATM yerlerini bulun.',
+                    style: TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Text('Küme Sayısı (k): $_kValue', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Expanded(
+                        child: Slider(
+                          value: _kValue.toDouble(),
+                          min: 2,
+                          max: 10,
+                          divisions: 8,
+                          label: _kValue.toString(),
+                          activeColor: Colors.black,
+                          onChanged: (val) {
+                            setState(() {
+                              _kValue = val.round();
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: _isOptimizing ? null : _runOptimization,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.black,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          icon: _isOptimizing
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                )
+                              : const Icon(Icons.psychology_outlined),
+                          label: const Text('Optimizasyonu Çalıştır'),
+                        ),
+                      ),
+                      if (_optimizedCenters.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: _resetOptimization,
+                          icon: const Icon(Icons.refresh_outlined),
+                          tooltip: 'Sıfırla',
+                        )
+                      ]
+                    ],
+                  ),
+                  if (_optimizedCenters.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text('Belirlenen Lokasyonlar:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    ..._optimizedCenters.map((center) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(center["name"], style: const TextStyle(fontWeight: FontWeight.bold)),
+                          Text('Koordinat: ${center["lat"]}, ${center["lng"]}'),
+                        ],
+                      ),
+                    )),
+                  ]
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
             const _Card(
               title: 'Harita Filtreleri',
               child: Wrap(
@@ -305,42 +477,38 @@ void calculateNearbyATMs() {
             ),
             const SizedBox(height: 12),
             _Card(
-              title: 'Yakındaki Noktalar',
-              child: errorMessage != null ?
-              Text('Konum alınamadığı için yakın noktalar gösterilemiyor.', style:TextStyle(color: Color(0xFFD32F2F)))
-              : isLoadingLocation ? const Text('Konum alınıyor...') 
-              : nearbyATMs.isEmpty ? const Text('Yakında ATM bulunamadı.') 
-              : Column(
-                children: nearbyATMs.asMap().entries.map((entry) {
-                  final atm = entry.value;
-
-                  return _LocationRow(
-                    title: atm["name"],
-                    distance: atm["distance"] < 1000
-                        ? "${atm["distance"].toStringAsFixed(0)} m"
-                        : "${(atm["distance"] / 1000).toStringAsFixed(1)} km",
-                    onTap: () {
-                      mapboxMap?.flyTo(
-                        CameraOptions(
-                          center: Point(
-                            coordinates: Position(
-                              atm["lng"],
-                              atm["lat"],
+              title: 'Yakındaki ATM Noktaları',
+              child: errorMessage != null
+                  ? const Text('Konum alınamadığı için yakın noktalar gösterilemiyor.', style: TextStyle(color: Color(0xFFD32F2F)))
+                  : isLoadingLocation
+                      ? const Text('Konum alınıyor...')
+                      : nearbyATMs.isEmpty
+                          ? const Text('Yakında ATM bulunamadı.')
+                          : Column(
+                              children: nearbyATMs.map((atm) {
+                                return _LocationRow(
+                                  title: atm["name"],
+                                  distance: atm["distance"] < 1000
+                                      ? "${atm["distance"].toStringAsFixed(0)} m"
+                                      : "${(atm["distance"] / 1000).toStringAsFixed(1)} km",
+                                  onTap: () {
+                                    mapboxMap?.flyTo(
+                                      CameraOptions(
+                                        center: Point(
+                                          coordinates: Position(
+                                            atm["lng"],
+                                            atm["lat"],
+                                          ),
+                                        ),
+                                        zoom: 15.0,
+                                      ),
+                                      MapAnimationOptions(duration: 1000),
+                                    );
+                                  },
+                                );
+                              }).toList(),
                             ),
-                          ),
-                          zoom: 15.0,
-                        ),
-                        MapAnimationOptions(duration: 1000),
-                      );
-                      // Handle ATM tap event
-                    },
-                  );
-                }).toList(),
-              ),
             ),
-
-                
-             
             const SizedBox(height: 12),
             const _Card(
               title: 'Rota Önerisi',

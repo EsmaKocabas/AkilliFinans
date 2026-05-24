@@ -7,6 +7,11 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
-  mapbox.MapboxOptions.setAccessToken(dotenv.env['MAPBOX_ACCESS_TOKEN']!);
+  final mapboxToken = dotenv.env['MAPBOX_ACCESS_TOKEN'];
+  if (mapboxToken != null && mapboxToken.isNotEmpty) {
+    mapbox.MapboxOptions.setAccessToken(mapboxToken);
+  } else {
+    mapbox.MapboxOptions.setAccessToken("pk.mock-token");
+  }
   runApp(const AkilliFinansApp());
 }

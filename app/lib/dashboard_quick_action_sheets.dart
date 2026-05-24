@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 import 'app_navigation.dart';
+import 'services/session_service.dart';
 import 'theme/design_tokens.dart';
 
 /// Dashboard Hızlı Eylemler — modallar controller ömrü StatefulWidget içinde (dışarı tıklanınca güvenli dispose).
@@ -124,51 +127,7 @@ abstract final class DashboardQuickActionSheets {
     required String subtitle,
     required String trailing,
   }) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadii.tile),
-        side: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: AppTypography.listTitle),
-                  const SizedBox(height: 4),
-                  Text(subtitle, style: AppTypography.listSubtitle),
-                ],
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(trailing, style: TextStyle(fontWeight: FontWeight.w700, color: Colors.red.shade700)),
-                TextButton(
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  onPressed: () {
-                    ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('$title ödemesi başlatıldı (demo).')));
-                  },
-                  child: const Text('Öde'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
+    return _InvoiceRowContainer(title: title, subtitle: subtitle, trailing: trailing);
   }
 
   static Future<void> showHedefOlustur(
@@ -199,6 +158,7 @@ class _ParaYatirSheet extends StatefulWidget {
 class _ParaYatirSheetState extends State<_ParaYatirSheet> {
   late final TextEditingController _amount;
   String _account = 'Ana Hesap **** 7821';
+  bool _submitting = false;
 
   @override
   void initState() {
@@ -210,6 +170,70 @@ class _ParaYatirSheetState extends State<_ParaYatirSheet> {
   void dispose() {
     _amount.dispose();
     super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final amtText = _amount.text.trim();
+    if (amtText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lütfen geçerli bir tutar girin.')),
+      );
+      return;
+    }
+    final amountVal = double.tryParse(amtText);
+    if (amountVal == null || amountVal <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tutar pozitif bir sayı olmalıdır.')),
+      );
+      return;
+    }
+
+    setState(() => _submitting = true);
+
+    try {
+      final url = Uri.parse('${AppSession.baseUrl}/api/transactions');
+      final response = await http.post(
+        url,
+        headers: AppSession.headers,
+        body: jsonEncode({
+          'title': 'Para Yükleme',
+          'category': 'Gelir',
+          'amount': amountVal,
+          'merchant': _account,
+          'paymentMethod': 'Hesap Transferi',
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        final body = jsonDecode(response.body);
+        final newBudget = (body['userBudget'] as num).toDouble();
+        AppSession.budget = newBudget;
+
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(widget.scaffoldContext).showSnackBar(
+            SnackBar(content: Text('₺${amountVal.round()} başarıyla yatırıldı.')),
+          );
+        }
+      } else {
+        final err = jsonDecode(response.body)['message'] ?? 'İşlem başarısız.';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Hata: $err')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Bağlantı hatası: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
   }
 
   @override
@@ -230,7 +254,7 @@ class _ParaYatirSheetState extends State<_ParaYatirSheet> {
             Text('Para yatır', style: AppTypography.sectionTitle.copyWith(fontSize: 20)),
             const SizedBox(height: AppSpacing.xs),
             const Text(
-              'Hesabına tutar yükleme (demo arayüz).',
+              'Hesabına tutar yükleme.',
               style: AppTypography.sectionHint,
             ),
             const SizedBox(height: AppSpacing.lg),
@@ -265,18 +289,19 @@ class _ParaYatirSheetState extends State<_ParaYatirSheet> {
             ),
             const SizedBox(height: AppSpacing.lg),
             FilledButton(
-              onPressed: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(widget.scaffoldContext).showSnackBar(
-                  const SnackBar(content: Text('Para yatırma isteği alındı (demo).')),
-                );
-              },
+              onPressed: _submitting ? null : _submit,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.heroDark,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
               ),
-              child: const Text('Devam et'),
+              child: _submitting
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Text('Devam et'),
             ),
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('İptal')),
           ],
@@ -299,6 +324,7 @@ class _TransferSheetState extends State<_TransferSheet> {
   late final TextEditingController _iban;
   late final TextEditingController _amount;
   late final TextEditingController _note;
+  bool _submitting = false;
 
   @override
   void initState() {
@@ -314,6 +340,82 @@ class _TransferSheetState extends State<_TransferSheet> {
     _amount.dispose();
     _note.dispose();
     super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final ibanText = _iban.text.trim();
+    final amtText = _amount.text.trim();
+    final noteText = _note.text.trim();
+
+    if (ibanText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lütfen alıcı IBAN veya cep bilgisi girin.')),
+      );
+      return;
+    }
+    if (amtText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lütfen geçerli bir tutar girin.')),
+      );
+      return;
+    }
+    final amountVal = double.tryParse(amtText);
+    if (amountVal == null || amountVal <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tutar pozitif bir sayı olmalıdır.')),
+      );
+      return;
+    }
+
+    setState(() => _submitting = true);
+
+    try {
+      final url = Uri.parse('${AppSession.baseUrl}/api/transactions');
+      final txAmount = -amountVal;
+      final title = noteText.isNotEmpty ? noteText : 'Para Transferi';
+      
+      final response = await http.post(
+        url,
+        headers: AppSession.headers,
+        body: jsonEncode({
+          'title': title,
+          'category': 'Transfer',
+          'amount': txAmount,
+          'merchant': ibanText,
+          'paymentMethod': 'FAST/EFT',
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        final body = jsonDecode(response.body);
+        final newBudget = (body['userBudget'] as num).toDouble();
+        AppSession.budget = newBudget;
+
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(widget.scaffoldContext).showSnackBar(
+            SnackBar(content: Text('₺${amountVal.round()} başarıyla transfer edildi.')),
+          );
+        }
+      } else {
+        final err = jsonDecode(response.body)['message'] ?? 'İşlem başarısız.';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Hata: $err')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Bağlantı hatası: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
   }
 
   @override
@@ -334,7 +436,7 @@ class _TransferSheetState extends State<_TransferSheet> {
               Center(child: DashboardQuickActionSheets._pillHandle()),
               Text('Transfer', style: AppTypography.sectionTitle.copyWith(fontSize: 20)),
               const SizedBox(height: AppSpacing.xs),
-              const Text('Başka hesaba FAST/EFT ile gönder (demo).', style: AppTypography.sectionHint),
+              const Text('Başka hesaba FAST/EFT ile gönder.', style: AppTypography.sectionHint),
               const SizedBox(height: AppSpacing.lg),
               TextField(
                 controller: _iban,
@@ -364,18 +466,19 @@ class _TransferSheetState extends State<_TransferSheet> {
               ),
               const SizedBox(height: AppSpacing.lg),
               FilledButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(widget.scaffoldContext).showSnackBar(
-                    const SnackBar(content: Text('Transfer onay ekranına yönlendirileceksiniz (demo).')),
-                  );
-                },
+                onPressed: _submitting ? null : _submit,
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.heroDark,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
                 ),
-                child: const Text('Gönder'),
+                child: _submitting
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Text('Gönder'),
               ),
               TextButton(onPressed: () => Navigator.pop(context), child: const Text('İptal')),
             ],
@@ -526,6 +629,134 @@ class _PctSliderRowState extends State<_PctSliderRow> {
           textAlign: TextAlign.center,
         ),
       ],
+    );
+  }
+}
+
+class _InvoiceRowContainer extends StatefulWidget {
+  const _InvoiceRowContainer({
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+  });
+
+  final String title;
+  final String subtitle;
+  final String trailing;
+
+  @override
+  State<_InvoiceRowContainer> createState() => _InvoiceRowContainerState();
+}
+
+class _InvoiceRowContainerState extends State<_InvoiceRowContainer> {
+  bool _loading = false;
+
+  Future<void> _payInvoice() async {
+    final cleanTrailing = widget.trailing.replaceAll('-₺', '').replaceAll('₺', '').trim();
+    final amountVal = double.tryParse(cleanTrailing) ?? 0.0;
+    if (amountVal <= 0) return;
+
+    setState(() => _loading = true);
+
+    try {
+      final url = Uri.parse('${AppSession.baseUrl}/api/transactions');
+      final response = await http.post(
+        url,
+        headers: AppSession.headers,
+        body: jsonEncode({
+          'title': '${widget.title} Faturası',
+          'category': 'Fatura',
+          'amount': -amountVal,
+          'merchant': widget.subtitle.split('·').first.trim(),
+          'paymentMethod': 'Hesap / Kart',
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        final body = jsonDecode(response.body);
+        final newBudget = (body['userBudget'] as num).toDouble();
+        AppSession.budget = newBudget;
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${widget.title} ödemesi başarıyla tamamlandı.')),
+          );
+          Navigator.pop(context);
+        }
+      } else {
+        final err = jsonDecode(response.body)['message'] ?? 'İşlem başarısız.';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Hata: $err')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Bağlantı hatası: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.tile),
+        side: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.title, style: AppTypography.listTitle),
+                  const SizedBox(height: 4),
+                  Text(widget.subtitle, style: AppTypography.listSubtitle),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(widget.trailing, style: TextStyle(fontWeight: FontWeight.w700, color: Colors.red.shade700)),
+                _loading
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        child: SizedBox(
+                          height: 14,
+                          width: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                        ),
+                      )
+                    : TextButton(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: _payInvoice,
+                        child: const Text('Öde'),
+                      ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
