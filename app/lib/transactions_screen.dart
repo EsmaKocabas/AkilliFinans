@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 import 'design_preset.dart';
+import 'services/session_service.dart';
 import 'theme/design_tokens.dart';
 import 'widgets/scrollable_screen_shell.dart';
 
@@ -88,88 +91,99 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   _TxFilter _filter = _TxFilter.tumu;
   _TxCategory? _categoryFilter;
 
-  static const List<_TransactionEntry> _all = [
-    _TransactionEntry(
-      title: 'Maaş Ödemesi',
-      dateLabel: '30 Nisan 2026, 09:00',
-      amountLabel: '+₺23.000',
-      isExpense: false,
-      merchant: 'Akıllı Finans A.Ş.',
-      paymentMethod: 'Banka Havalesi',
-      referenceCode: 'REF-GEL-202604300901',
-      detailNote: 'Aylık net maaş ödemesi. Vergi ve SGK kesintileri yapılmış tutardır.',
-      category: _TxCategory.gelir,
-    ),
-    _TransactionEntry(
-      title: 'Market Alışverişi',
-      dateLabel: '30 Nisan 2026, 10:45',
-      amountLabel: '-₺460',
-      isExpense: true,
-      merchant: 'CarrefourSA Kadıköy',
-      paymentMethod: 'Temassız Kart · **** 4821',
-      referenceCode: 'TXN-884921044',
-      detailNote: 'Gıda ve temizlik ürünleri. Fiş POS üzerinden otomatik olarak Market kategorisine işlendi.',
-      category: _TxCategory.market,
-    ),
-    _TransactionEntry(
-      title: 'Elektrik Faturası',
-      dateLabel: '29 Nisan 2026, 20:10',
-      amountLabel: '-₺780',
-      isExpense: true,
-      merchant: 'CK Enerji',
-      paymentMethod: 'Otomatik Ödeme Talimatı',
-      referenceCode: 'FTV-E250429881',
-      detailNote: 'Mart dönemi tüketim faturası. Fatura kategorisi altında takip edilir.',
-      category: _TxCategory.fatura,
-    ),
-    _TransactionEntry(
-      title: 'İstanbul Kart Bakiye',
-      dateLabel: '29 Nisan 2026, 07:28',
-      amountLabel: '-₺175',
-      isExpense: true,
-      merchant: 'Biletmatik · Kadıköy',
-      paymentMethod: 'Temassız Kart · **** 4821',
-      referenceCode: 'TRN-METRO-902114',
-      detailNote: 'Toplu taşıma bakiye yükleme. Ulaşım harcaması olarak raporlanır.',
-      category: _TxCategory.ulasim,
-    ),
-    _TransactionEntry(
-      title: 'Fon Satışı',
-      dateLabel: '29 Nisan 2026, 14:32',
-      amountLabel: '+₺2.250',
-      isExpense: false,
-      merchant: 'Akıllı Yatırım',
-      paymentMethod: 'Yatırım Hesabı',
-      referenceCode: 'INV-YTF-S742',
-      detailNote: 'Para piyasası fonundan kısmi satış. Tutar ana hesaba aktarıldı.',
-      category: _TxCategory.yatirim,
-    ),
-    _TransactionEntry(
-      title: 'Kira Ödemesi',
-      dateLabel: '28 Nisan 2026, 08:12',
-      amountLabel: '-₺8.000',
-      isExpense: true,
-      merchant: 'Ev Sahibi · ****567',
-      paymentMethod: 'FAST / IBAN',
-      referenceCode: 'FAST-772910332',
-      detailNote: 'Mayıs ayı kira ödemesi. Konut kategorisi.',
-      category: _TxCategory.konut,
-    ),
-    _TransactionEntry(
-      title: 'Streaming Aboneliği',
-      dateLabel: '27 Nisan 2026, 03:02',
-      amountLabel: '-₺149',
-      isExpense: true,
-      merchant: 'Dijital Platform A.Ş.',
-      paymentMethod: 'Sanal Kart · **** 9034',
-      referenceCode: 'SUB-RNW-49201',
-      detailNote: 'Dijital içerik aboneliği. Eğlence kategorisi.',
-      category: _TxCategory.eglence,
-    ),
-  ];
+  bool _isLoading = true;
+  String? _error;
+  List<_TransactionEntry> _allTransactions = [];
+
+  _TxCategory _mapCategory(String cat) {
+    switch (cat.toLowerCase()) {
+      case 'market':
+        return _TxCategory.market;
+      case 'fatura':
+        return _TxCategory.fatura;
+      case 'ulaşım':
+      case 'ulasim':
+        return _TxCategory.ulasim;
+      case 'eğlence':
+      case 'eglence':
+        return _TxCategory.eglence;
+      case 'konut':
+        return _TxCategory.konut;
+      case 'gelir':
+        return _TxCategory.gelir;
+      case 'yatırım':
+      case 'yatirim':
+        return _TxCategory.yatirim;
+      default:
+        return _TxCategory.market;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchTransactions();
+  }
+
+  Future<void> _fetchTransactions() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final url = Uri.parse('${AppSession.baseUrl}/api/transactions');
+      final response = await http.get(url, headers: AppSession.headers);
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        final List<dynamic> list = body['data'];
+
+        final mapped = list.map((item) {
+          final amt = (item['amount'] as num).toDouble();
+          final isExpense = amt < 0;
+          final sign = isExpense ? '-' : '+';
+          final absAmt = amt.abs().round();
+          
+          return _TransactionEntry(
+            title: item['title'] ?? 'Bilinmeyen İşlem',
+            dateLabel: item['date'] ?? '',
+            amountLabel: '$sign₺$absAmt',
+            isExpense: isExpense,
+            merchant: item['merchant'] ?? '',
+            paymentMethod: item['paymentMethod'] ?? 'Kart',
+            referenceCode: item['referenceCode'] ?? '',
+            detailNote: 'Kategori: ${item['category']}. Referans: ${item['referenceCode']}. Ödeme: ${item['paymentMethod']}',
+            category: _mapCategory(item['category'] ?? 'Gelir'),
+          );
+        }).toList();
+
+        if (mounted) {
+          setState(() {
+            _allTransactions = mapped;
+            _isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _error = 'Hata: İşlemler yüklenemedi (Kod: ${response.statusCode})';
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Sunucu bağlantı hatası: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   List<_TransactionEntry> get _visible {
-    Iterable<_TransactionEntry> list = _all;
+    Iterable<_TransactionEntry> list = _allTransactions;
     switch (_filter) {
       case _TxFilter.tumu:
         break;
@@ -304,12 +318,38 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 48),
+              const SizedBox(height: 12),
+              Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 16), textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _fetchTransactions,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Tekrar Dene'),
+              )
+            ],
+          ),
+        ),
+      );
+    }
+
     final visible = _visible;
-    final expenseSum = _all.where((e) => e.isExpense).fold<double>(
+    final expenseSum = _allTransactions.where((e) => e.isExpense).fold<double>(
           0,
           (s, e) => s + _parseAmount(e.amountLabel),
         );
-    final incomeSum = _all.where((e) => !e.isExpense).fold<double>(
+    final incomeSum = _allTransactions.where((e) => !e.isExpense).fold<double>(
           0,
           (s, e) => s + _parseAmount(e.amountLabel),
         );

@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 import 'app_navigation.dart';
 import 'dashboard_quick_action_sheets.dart';
 import 'design_preset.dart';
+import 'services/session_service.dart';
 import 'theme/design_tokens.dart';
 import 'widgets/financial_category_tile.dart';
 import 'widgets/scrollable_screen_shell.dart';
 
-/// Görev kapsamı: İşlem etkinliği + finansal kategori kartları + token ile hizalı iskelet.
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({
     super.key,
     required this.preset,
@@ -17,185 +19,266 @@ class DashboardScreen extends StatelessWidget {
   });
 
   final DesignPreset preset;
-
-  /// Alt gezinme ile sekme geçişi (tip güvenli AppTab).
   final ValueChanged<AppTab>? onNavigateToTab;
 
   @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  bool _isLoading = true;
+  String? _error;
+
+  double _totalAsset = 0.0;
+  double _income = 0.0;
+  double _expense = 0.0;
+  double _savings = 0.0;
+  Map<String, double> _categoryDistribution = {'Market': 0.0, 'Fatura': 0.0, 'Ulaşım': 0.0};
+  List<dynamic> _recentTransactions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    AppSession.budgetNotifier.addListener(_onBudgetChanged);
+    _fetchDashboardData();
+  }
+
+  @override
+  void dispose() {
+    AppSession.budgetNotifier.removeListener(_onBudgetChanged);
+    super.dispose();
+  }
+
+  void _onBudgetChanged() {
+    _fetchDashboardData();
+  }
+
+  Future<void> _fetchDashboardData() async {
+    try {
+      final statsUrl = Uri.parse('${AppSession.baseUrl}/api/dashboard/stats');
+      final txsUrl = Uri.parse('${AppSession.baseUrl}/api/transactions');
+
+      final statsResponse = await http.get(statsUrl, headers: AppSession.headers);
+      final txsResponse = await http.get(txsUrl, headers: AppSession.headers);
+
+      if (statsResponse.statusCode == 200 && txsResponse.statusCode == 200) {
+        final statsBody = jsonDecode(statsResponse.body)['data'];
+        final txsBody = jsonDecode(txsResponse.body)['data'];
+
+        if (mounted) {
+          setState(() {
+            _totalAsset = (statsBody['totalAsset'] as num).toDouble();
+            
+            // Proactively sync session budget so other listening widgets update
+            if (AppSession.budgetNotifier.value != _totalAsset) {
+              AppSession.budgetNotifier.value = _totalAsset;
+            }
+
+            _income = (statsBody['income'] as num).toDouble();
+            _expense = (statsBody['expense'] as num).toDouble();
+            _savings = (statsBody['savings'] as num).toDouble();
+
+            final dist = statsBody['categoryDistribution'] as Map<String, dynamic>;
+            _categoryDistribution = dist.map((k, v) => MapEntry(k, (v as num).toDouble()));
+
+            _recentTransactions = txsBody;
+            _isLoading = false;
+            _error = null;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _error = 'Bütçe istatistikleri alınamadı (Kod: ${statsResponse.statusCode})';
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Sunucu bağlantı hatası: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ScrollableScreenShell(
-      wideBreakpoint: 900,
-      children: [
-        const Text('Dashboard', style: AppTypography.pageTitle),
-        const SizedBox(height: AppSpacing.xs),
-        const Text(
-          'Özet varlık, son harcamalar ve kategori görünümü tek yerde.',
-          style: AppTypography.pageSubtitle,
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        _PortfolioCard(accent: preset.primary),
-        const SizedBox(height: AppSpacing.md),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 900;
-            return isWide
-                ? const Row(
-                    children: [
-                      Expanded(child: _StatCard(title: 'Gelir', value: '₺28.450', trend: '+12%')),
-                      SizedBox(width: AppSpacing.md),
-                      Expanded(child: _StatCard(title: 'Gider', value: '₺14.980', trend: '-4%')),
-                      SizedBox(width: AppSpacing.md),
-                      Expanded(child: _StatCard(title: 'Tasarruf', value: '₺13.470', trend: '+18%')),
-                    ],
-                  )
-                : const Column(
-                    children: [
-                      _StatCard(title: 'Gelir', value: '₺28.450', trend: '+12%'),
-                      SizedBox(height: 10),
-                      _StatCard(title: 'Gider', value: '₺14.980', trend: '-4%'),
-                      SizedBox(height: 10),
-                      _StatCard(title: 'Tasarruf', value: '₺13.470', trend: '+18%'),
-                    ],
-                  );
-          },
-        ),
-        const SizedBox(height: AppSpacing.md),
-        const _StaticActivitySection(),
-        const SizedBox(height: AppSpacing.md),
-        const _FinancialCategoriesSection(),
-        const SizedBox(height: AppSpacing.md),
-        _SectionCard(
-          title: 'Hızlı Eylemler',
-          child: Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _QuickActionChip(
-                icon: Icons.add_card,
-                label: 'Para Yatır',
-                onPressed: () => DashboardQuickActionSheets.showParaYatir(context),
-              ),
-              _QuickActionChip(
-                icon: Icons.send_outlined,
-                label: 'Transfer',
-                onPressed: () => DashboardQuickActionSheets.showTransfer(context),
-              ),
-              _QuickActionChip(
-                icon: Icons.receipt_long_outlined,
-                label: 'Fatura Öde',
-                onPressed: () => DashboardQuickActionSheets.showFaturaOde(
-                  context,
-                  navigateToTab: onNavigateToTab ?? (_) {},
-                ),
-              ),
-              _QuickActionChip(
-                icon: Icons.savings_outlined,
-                label: 'Hedef Oluştur',
-                onPressed: () => DashboardQuickActionSheets.showHedefOlustur(
-                  context,
-                  navigateToTab: onNavigateToTab ?? (_) {},
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        const _SectionCard(
-          title: 'Son İşlemler',
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _TransactionRow(title: 'Market Alışverişi', date: 'Bugün, 10:45', amount: '-₺460'),
-              _TransactionRow(title: 'Maaş Ödemesi', date: 'Dün, 09:00', amount: '+₺23.000'),
-              _TransactionRow(title: 'Elektrik Faturası', date: 'Dün, 20:10', amount: '-₺780'),
+              const Icon(Icons.error_outline, color: Colors.red, size: 48),
+              const SizedBox(height: 12),
+              Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 16), textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () {
+                  setState(() => _isLoading = true);
+                  _fetchDashboardData();
+                },
+                icon: const Icon(Icons.refresh),
+                label: const Text('Tekrar Dene'),
+              )
             ],
           ),
         ),
-      ],
+      );
+    }
+
+    return ValueListenableBuilder<double>(
+      valueListenable: AppSession.budgetNotifier,
+      builder: (context, currentBudget, _) {
+        return ScrollableScreenShell(
+          wideBreakpoint: 900,
+          children: [
+            const Text('Dashboard', style: AppTypography.pageTitle),
+            const SizedBox(height: AppSpacing.xs),
+            const Text(
+              'Özet varlık, son harcamalar ve kategori görünümü tek yerde.',
+              style: AppTypography.pageSubtitle,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            _PortfolioCard(accent: widget.preset.primary, budget: currentBudget),
+            const SizedBox(height: AppSpacing.md),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 900;
+                final incomeStr = '₺${_income.round()}';
+                final expenseStr = '₺${_expense.round()}';
+                final savingsStr = '₺${_savings.round()}';
+
+                return isWide
+                    ? Row(
+                        children: [
+                          Expanded(child: _StatCard(title: 'Gelir', value: incomeStr, trend: '+12%')),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(child: _StatCard(title: 'Gider', value: expenseStr, trend: '-4%')),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(child: _StatCard(title: 'Tasarruf', value: savingsStr, trend: '+18%')),
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          _StatCard(title: 'Gelir', value: incomeStr, trend: '+12%'),
+                          const SizedBox(height: 10),
+                          _StatCard(title: 'Gider', value: expenseStr, trend: '-4%'),
+                          const SizedBox(height: 10),
+                          _StatCard(title: 'Tasarruf', value: savingsStr, trend: '+18%'),
+                        ],
+                      );
+              },
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _ActivitySection(transactions: _recentTransactions),
+            const SizedBox(height: AppSpacing.md),
+            _FinancialCategoriesSection(distribution: _categoryDistribution),
+            const SizedBox(height: AppSpacing.md),
+            _SectionCard(
+              title: 'Hızlı Eylemler',
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _QuickActionChip(
+                    icon: Icons.add_card,
+                    label: 'Para Yatır',
+                    onPressed: () => DashboardQuickActionSheets.showParaYatir(context),
+                  ),
+                  _QuickActionChip(
+                    icon: Icons.send_outlined,
+                    label: 'Transfer',
+                    onPressed: () => DashboardQuickActionSheets.showTransfer(context),
+                  ),
+                  _QuickActionChip(
+                    icon: Icons.receipt_long_outlined,
+                    label: 'Fatura Öde',
+                    onPressed: () => DashboardQuickActionSheets.showFaturaOde(
+                      context,
+                      navigateToTab: widget.onNavigateToTab ?? (_) {},
+                    ),
+                  ),
+                  _QuickActionChip(
+                    icon: Icons.savings_outlined,
+                    label: 'Hedef Oluştur',
+                    onPressed: () => DashboardQuickActionSheets.showHedefOlustur(
+                      context,
+                      navigateToTab: widget.onNavigateToTab ?? (_) {},
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _SectionCard(
+              title: 'Son İşlemler',
+              child: Column(
+                children: [
+                  if (_recentTransactions.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Text('Henüz bir finansal işlem bulunmuyor.', style: TextStyle(color: Colors.grey)),
+                    )
+                  else
+                    ..._recentTransactions.take(3).map((tx) {
+                      final isPositive = (tx['amount'] as num) > 0;
+                      final sign = isPositive ? '+' : '-';
+                      final amountVal = (tx['amount'] as num).abs().round();
+                      return _TransactionRow(
+                        title: tx['title'] ?? 'Bilinmeyen İşlem',
+                        date: tx['date'] ?? '',
+                        amount: '$sign₺$amountVal',
+                      );
+                    }),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
 
-/// Sabit örnek harcamalar — backend yok (yalnızca UI).
-class _StaticActivitySection extends StatelessWidget {
-  const _StaticActivitySection();
+class _ActivitySection extends StatelessWidget {
+  const _ActivitySection({required this.transactions});
 
-  static const List<_StaticActivityRow> _rows = [
-    _StaticActivityRow(
-      titleLine: 'Market - 250 ₺',
-      subtitle: 'Bugün · Kart ile ödeme',
-      icon: Icons.shopping_basket_outlined,
-      sheetTitle: 'Market işlemi',
-      categoryLabel: 'Market',
-      dateLabel: '2 Mayıs 2026, 09:41',
-      amountLabel: '-₺250',
-      isExpense: true,
-      merchant: 'Çarşı Market · Kadıköy',
-      paymentMethod: 'Temassız Kart · **** 4821',
-      referenceCode: 'DASH-TXN-MK8842',
-      detailNote:
-          'Gıda ve kişisel bakım kalemleri. Dashboard işlem etkinliği kartından açılan örnek detay; fiş OCR ile tahmini kategori.',
-    ),
-    _StaticActivityRow(
-      titleLine: 'Fatura - 450 ₺',
-      subtitle: 'Dün · Otomatik ödeme',
-      icon: Icons.receipt_long_outlined,
-      sheetTitle: 'Elektrik faturası',
-      categoryLabel: 'Fatura',
-      dateLabel: '1 Mayıs 2026, 08:05',
-      amountLabel: '-₺450',
-      isExpense: true,
-      merchant: 'Şehir Dağıtım A.Ş.',
-      paymentMethod: 'Otomatik ödeme talimatı',
-      referenceCode: 'FT-DASH-99102',
-      detailNote: 'Nisan dönemi tüketim faturası. Otomatik ödemeden düşüm.',
-    ),
-    _StaticActivityRow(
-      titleLine: 'Ulaşım - 120 ₺',
-      subtitle: 'Dün · Toplu taşıma',
-      icon: Icons.directions_bus_outlined,
-      sheetTitle: 'Ulaşım',
-      categoryLabel: 'Ulaşım',
-      dateLabel: '1 Mayıs 2026, 07:52',
-      amountLabel: '-₺120',
-      isExpense: true,
-      merchant: 'İstanbul Kart · Marmaray istasyonu',
-      paymentMethod: 'NFC · QR',
-      referenceCode: 'METRO-QR-77421',
-      detailNote: 'Günlük yol geçişi ve bakiye yüklemesi.',
-    ),
-    _StaticActivityRow(
-      titleLine: 'Eğlence - 89 ₺',
-      subtitle: '26 Nisan · Abonelik',
-      icon: Icons.theaters_outlined,
-      sheetTitle: 'Eğlence aboneliği',
-      categoryLabel: 'Eğlence',
-      dateLabel: '26 Nisan 2026, 03:05',
-      amountLabel: '-₺89',
-      isExpense: true,
-      merchant: 'Dijital Yayın Servisi',
-      paymentMethod: 'Sanal Kart · **** 9034',
-      referenceCode: 'SUB-DASH-E441',
-      detailNote: 'Aylık dijital içerik aboneliği yenilemesi.',
-    ),
-    _StaticActivityRow(
-      titleLine: 'Yatırım - 5.000 ₺',
-      subtitle: '25 Nisan · Fon alımı',
-      icon: Icons.trending_up_outlined,
-      sheetTitle: 'Fon alımı',
-      categoryLabel: 'Yatırım',
-      dateLabel: '25 Nisan 2026, 14:20',
-      amountLabel: '-₺5.000',
-      isExpense: true,
-      merchant: 'Akıllı Yatırım Portföy Yönetimi',
-      paymentMethod: 'Ana Hesap · TL',
-      referenceCode: 'INV-DASH-Y112',
-      detailNote:
-          'Birinci seri sermaye koruma fonundan alım. Ana hesaptan blokaj kaldırıldı.',
-    ),
-  ];
+  final List<dynamic> transactions;
+
+  IconData _categoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'market':
+        return Icons.shopping_basket_outlined;
+      case 'fatura':
+        return Icons.receipt_long_outlined;
+      case 'ulaşım':
+      case 'ulasim':
+        return Icons.directions_bus_outlined;
+      case 'eğlence':
+      case 'eglence':
+        return Icons.theaters_outlined;
+      case 'yatırım':
+      case 'yatirim':
+        return Icons.trending_up_outlined;
+      default:
+        return Icons.payment_outlined;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Limit list to last 5 transactions
+    final items = transactions.take(5).toList();
+
     return Container(
       decoration: AppDecorations.surfaceCard(),
       clipBehavior: Clip.antiAlias,
@@ -210,25 +293,39 @@ class _StaticActivitySection extends StatelessWidget {
                 Text('İşlem etkinliği', style: AppTypography.sectionTitle),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  'Son finansal hareketler (örnek liste; şimdilik sabit veri).',
+                  'Son finansal hareketler (canlı veritabanı verileri).',
                   style: AppTypography.sectionHint,
                 ),
               ],
             ),
           ),
-          for (var i = 0; i < _rows.length; i++) ...[
-            if (i > 0) const Divider(height: 1, indent: 72),
-            ListTile(
-              onTap: () => _showDashboardActivityDetail(context, _rows[i]),
-              leading: CircleAvatar(
-                backgroundColor: AppColors.chipBackground,
-                child: Icon(_rows[i].icon, color: AppColors.textPrimary),
+          if (items.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Center(
+                child: Text('Henüz işlem bulunmuyor.', style: TextStyle(color: Colors.grey)),
               ),
-              title: Text(_rows[i].titleLine, style: AppTypography.listTitle),
-              subtitle: Text(_rows[i].subtitle, style: AppTypography.listSubtitle),
-              trailing: const Icon(Icons.chevron_right, color: Colors.black38),
-            ),
-          ],
+            )
+          else
+            for (var i = 0; i < items.length; i++) ...[
+              if (i > 0) const Divider(height: 1, indent: 72),
+              ListTile(
+                onTap: () => _showDashboardActivityDetail(context, items[i], _categoryIcon(items[i]['category'] ?? '')),
+                leading: CircleAvatar(
+                  backgroundColor: AppColors.chipBackground,
+                  child: Icon(_categoryIcon(items[i]['category'] ?? ''), color: AppColors.textPrimary),
+                ),
+                title: Text(
+                  '${items[i]['title']} - ₺${(items[i]['amount'] as num).abs().round()}',
+                  style: AppTypography.listTitle,
+                ),
+                subtitle: Text(
+                  '${items[i]['date']} · ${items[i]['paymentMethod'] ?? 'Kart'}',
+                  style: AppTypography.listSubtitle,
+                ),
+                trailing: const Icon(Icons.chevron_right, color: Colors.black38),
+              ),
+            ],
           const SizedBox(height: AppSpacing.sm),
         ],
       ),
@@ -236,8 +333,11 @@ class _StaticActivitySection extends StatelessWidget {
   }
 }
 
-void _showDashboardActivityDetail(BuildContext context, _StaticActivityRow row) {
+void _showDashboardActivityDetail(BuildContext context, Map<String, dynamic> row, IconData icon) {
   final bottom = MediaQuery.paddingOf(context).bottom;
+  final amountVal = (row['amount'] as num).toDouble();
+  final isExpense = amountVal < 0;
+
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -276,7 +376,7 @@ void _showDashboardActivityDetail(BuildContext context, _StaticActivityRow row) 
                       CircleAvatar(
                         radius: 24,
                         backgroundColor: AppColors.chipBackground,
-                        child: Icon(row.icon, color: AppColors.textPrimary),
+                        child: Icon(icon, color: AppColors.textPrimary),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -284,20 +384,20 @@ void _showDashboardActivityDetail(BuildContext context, _StaticActivityRow row) 
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              row.sheetTitle,
+                              row['title'] ?? '',
                               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                             ),
                             const SizedBox(height: 8),
-                            _ActivityCategoryChip(label: row.categoryLabel),
+                            _ActivityCategoryChip(label: row['category'] ?? 'Genel'),
                           ],
                         ),
                       ),
                       Text(
-                        row.amountLabel,
+                        '${isExpense ? '-' : '+'}₺${amountVal.abs().round()}',
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
-                          color: row.isExpense ? Colors.red.shade700 : Colors.green.shade700,
+                          color: isExpense ? Colors.red.shade700 : Colors.green.shade700,
                         ),
                       ),
                     ],
@@ -312,37 +412,27 @@ void _showDashboardActivityDetail(BuildContext context, _StaticActivityRow row) 
                       _DashboardActivityDetailRow(
                         icon: Icons.category_outlined,
                         label: 'Kategori',
-                        value: row.categoryLabel,
+                        value: row['category'] ?? 'Genel',
                       ),
                       _DashboardActivityDetailRow(
                         icon: Icons.calendar_today_outlined,
                         label: 'Tarih ve saat',
-                        value: row.dateLabel,
+                        value: row['date'] ?? '',
                       ),
                       _DashboardActivityDetailRow(
                         icon: Icons.storefront_outlined,
                         label: 'İşyeri / Karşı taraf',
-                        value: row.merchant,
+                        value: row['merchant'] ?? '',
                       ),
                       _DashboardActivityDetailRow(
                         icon: Icons.payment_outlined,
                         label: 'Ödeme yöntemi',
-                        value: row.paymentMethod,
+                        value: row['paymentMethod'] ?? 'Kart',
                       ),
                       _DashboardActivityDetailRow(
                         icon: Icons.tag_outlined,
                         label: 'Referans kodu',
-                        value: row.referenceCode,
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Açıklama',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        row.detailNote,
-                        style: const TextStyle(color: Color(0xFF424242), height: 1.45),
+                        value: row['referenceCode'] ?? '',
                       ),
                     ],
                   ),
@@ -387,7 +477,7 @@ class _ActivityCategoryChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.label_outline, size: 14, color: AppColors.textPrimary.withValues(alpha: 0.7)),
+              Icon(Icons.label_outline, size: 14, color: AppColors.textPrimary.withOpacity(0.7)),
               const SizedBox(width: 6),
               Text(label, style: AppTypography.listSubtitle.copyWith(fontWeight: FontWeight.w600)),
             ],
@@ -434,36 +524,6 @@ class _DashboardActivityDetailRow extends StatelessWidget {
   }
 }
 
-class _StaticActivityRow {
-  const _StaticActivityRow({
-    required this.titleLine,
-    required this.subtitle,
-    required this.icon,
-    required this.sheetTitle,
-    required this.categoryLabel,
-    required this.dateLabel,
-    required this.amountLabel,
-    required this.isExpense,
-    required this.merchant,
-    required this.paymentMethod,
-    required this.referenceCode,
-    required this.detailNote,
-  });
-
-  final String titleLine;
-  final String subtitle;
-  final IconData icon;
-  final String sheetTitle;
-  final String categoryLabel;
-  final String dateLabel;
-  final String amountLabel;
-  final bool isExpense;
-  final String merchant;
-  final String paymentMethod;
-  final String referenceCode;
-  final String detailNote;
-}
-
 enum _SpendQuickFilter { tumu, market, fatura, ulasim }
 
 class _MonthlySpendSlice {
@@ -482,47 +542,47 @@ class _MonthlySpendSlice {
   final Color chartColor;
 }
 
-/// Aylık harcama pastası + hızlı kategori şeridi (demo veri).
 class _FinancialCategoriesSection extends StatefulWidget {
-  const _FinancialCategoriesSection();
+  const _FinancialCategoriesSection({required this.distribution});
+
+  final Map<String, double> distribution;
 
   @override
   State<_FinancialCategoriesSection> createState() => _FinancialCategoriesSectionState();
 }
 
 class _FinancialCategoriesSectionState extends State<_FinancialCategoriesSection> {
-  static const List<_MonthlySpendSlice> _chartSlices = [
+  _SpendQuickFilter _selected = _SpendQuickFilter.tumu;
+
+  List<_MonthlySpendSlice> get _chartSlices => [
     _MonthlySpendSlice(
       filter: _SpendQuickFilter.market,
       label: 'Market',
-      amountTry: 4960,
+      amountTry: widget.distribution['Market'] ?? 0.0,
       icon: Icons.shopping_basket_outlined,
-      chartColor: Color(0xFF263238),
+      chartColor: const Color(0xFF263238),
     ),
     _MonthlySpendSlice(
       filter: _SpendQuickFilter.fatura,
       label: 'Fatura',
-      amountTry: 4340,
+      amountTry: widget.distribution['Fatura'] ?? 0.0,
       icon: Icons.receipt_long_outlined,
-      chartColor: Color(0xFF546E7A),
+      chartColor: const Color(0xFF546E7A),
     ),
     _MonthlySpendSlice(
       filter: _SpendQuickFilter.ulasim,
       label: 'Ulaşım',
-      amountTry: 3100,
+      amountTry: widget.distribution['Ulaşım'] ?? widget.distribution['Ulasim'] ?? 0.0,
       icon: Icons.directions_bus_outlined,
-      chartColor: Color(0xFF90A4AE),
+      chartColor: const Color(0xFF90A4AE),
     ),
   ];
 
-  /// Şeritteki ilk öğe: Tümü; ardından pastadaki sıra ile uyumlu kategoriler.
-  static List<({String label, IconData icon, _SpendQuickFilter filter})> get _quickItems => [
-        (label: 'Tümü', icon: Icons.pie_chart_outline_rounded, filter: _SpendQuickFilter.tumu),
-        for (final s in _chartSlices)
-          (label: s.label, icon: s.icon, filter: s.filter),
-      ];
-
-  _SpendQuickFilter _selected = _SpendQuickFilter.tumu;
+  List<({String label, IconData icon, _SpendQuickFilter filter})> get _quickItems => [
+    (label: 'Tümü', icon: Icons.pie_chart_outline_rounded, filter: _SpendQuickFilter.tumu),
+    for (final s in _chartSlices)
+      (label: s.label, icon: s.icon, filter: s.filter),
+  ];
 
   double _totalSpend() => _chartSlices.fold<double>(0, (a, s) => a + s.amountTry);
 
@@ -547,6 +607,31 @@ class _FinancialCategoriesSectionState extends State<_FinancialCategoriesSection
 
   Widget _pie(double side) {
     final focused = _focusedSliceIndex();
+    final total = _totalSpend();
+    
+    // Fallback if spend is zero, render a grey circle
+    if (total == 0) {
+      return SizedBox(
+        width: side,
+        height: side,
+        child: PieChart(
+          PieChartData(
+            borderData: FlBorderData(show: false),
+            sectionsSpace: 0,
+            centerSpaceRadius: side * 0.34,
+            sections: [
+              PieChartSectionData(
+                color: Colors.grey.shade300,
+                value: 100,
+                showTitle: false,
+                radius: 52,
+              )
+            ],
+          ),
+        ),
+      );
+    }
+
     return SizedBox(
       width: side,
       height: side,
@@ -560,7 +645,7 @@ class _FinancialCategoriesSectionState extends State<_FinancialCategoriesSection
             for (var i = 0; i < _chartSlices.length; i++)
               PieChartSectionData(
                 color: _chartSlices[i].chartColor,
-                value: _chartSlices[i].amountTry,
+                value: _chartSlices[i].amountTry == 0 ? 0.0001 : _chartSlices[i].amountTry, // prevent zero division inside chart
                 showTitle: false,
                 radius: _sectionRadius(i, focused),
               ),
@@ -585,12 +670,12 @@ class _FinancialCategoriesSectionState extends State<_FinancialCategoriesSection
               width: 10,
               height: 10,
               decoration: BoxDecoration(
-                color: s.chartColor.withValues(alpha: dimmed ? 0.38 : 1),
+                color: s.chartColor.withOpacity(dimmed ? 0.38 : 1),
                 shape: BoxShape.circle,
               ),
             ),
             const SizedBox(width: 10),
-            Icon(s.icon, size: 18, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: dimmed ? 0.42 : 0.74)),
+            Icon(s.icon, size: 18, color: Theme.of(context).colorScheme.onSurface.withOpacity(dimmed ? 0.42 : 0.74)),
             const SizedBox(width: 8),
             Expanded(
               child: Column(
@@ -601,14 +686,14 @@ class _FinancialCategoriesSectionState extends State<_FinancialCategoriesSection
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: dimmed ? 0.45 : 1),
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(dimmed ? 0.45 : 1),
                     ),
                   ),
                   Text(
                     '${_fmtTry(s.amountTry)} · %${pct.toStringAsFixed(1)}',
                     style: AppTypography.listSubtitle.copyWith(
                       fontSize: 12,
-                      color: AppColors.textMuted.withValues(alpha: dimmed ? 0.5 : 1),
+                      color: AppColors.textMuted.withOpacity(dimmed ? 0.5 : 1),
                     ),
                   ),
                 ],
@@ -722,9 +807,10 @@ String _fmtTry(double amount) {
 }
 
 class _PortfolioCard extends StatelessWidget {
-  const _PortfolioCard({required this.accent});
+  const _PortfolioCard({required this.accent, required this.budget});
 
   final Color accent;
+  final double budget;
 
   @override
   Widget build(BuildContext context) {
@@ -736,24 +822,24 @@ class _PortfolioCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Toplam Varlık', style: TextStyle(color: Colors.white70)),
-                SizedBox(height: 6),
+                const Text('Toplam Varlık', style: TextStyle(color: Colors.white70)),
+                const SizedBox(height: 6),
                 Text(
-                  '₺186.420',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 28),
+                  '₺${budget.round()}',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 28),
                 ),
-                SizedBox(height: 6),
-                Text('+₺8.240 bu ay', style: TextStyle(color: Colors.white70)),
+                const SizedBox(height: 6),
+                const Text('+₺8.240 bu ay', style: TextStyle(color: Colors.white70)),
               ],
             ),
           ),
           CircleAvatar(
             radius: 24,
-            backgroundColor: accent.withValues(alpha: 0.25),
+            backgroundColor: accent.withOpacity(0.25),
             child: const Icon(Icons.account_balance_wallet_outlined, color: Colors.white),
           ),
         ],
@@ -802,9 +888,33 @@ class _StatCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadii.tile),
         border: Border.all(color: AppColors.borderSubtle),
       ),
-      child: Text(
-        '$title\n$value\n$trend',
-        style: const TextStyle(height: 1.45, fontWeight: FontWeight.w600),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 4),
+              Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+            ],
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: trend.startsWith('+') ? Colors.green.shade50 : Colors.red.shade50,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              trend,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: trend.startsWith('+') ? Colors.green.shade700 : Colors.red.shade700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
