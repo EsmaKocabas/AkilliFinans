@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:provider/provider.dart';
 import 'services/session_service.dart';
 
 /// Location-focused responsive page.
@@ -36,9 +37,11 @@ class _MapScreenState extends State<MapScreen> {
   List<Map<String, dynamic>> _optimizedCenters = [];
 
   Future<void> _fetchCandidates() async {
+    if (!mounted) return;
+    final session = context.read<AppSession>();
     try {
       final url = Uri.parse('${AppSession.baseUrl}/api/map/atms');
-      final response = await http.get(url, headers: AppSession.headers);
+      final response = await http.get(url, headers: session.headers);
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
@@ -63,9 +66,11 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _fetchNearbyATMs(double lat, double lng) async {
+    if (!mounted) return;
+    final session = context.read<AppSession>();
     try {
       final url = Uri.parse('${AppSession.baseUrl}/api/map/nearby?lat=$lat&lng=$lng');
-      final response = await http.get(url, headers: AppSession.headers);
+      final response = await http.get(url, headers: session.headers);
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
@@ -117,11 +122,13 @@ class _MapScreenState extends State<MapScreen> {
       errorMessage = null;
     });
 
+    if (!mounted) return;
+    final session = context.read<AppSession>();
     try {
       final url = Uri.parse('${AppSession.baseUrl}/api/map/optimize');
       final response = await http.post(
         url,
-        headers: AppSession.headers,
+        headers: session.headers,
         body: jsonEncode({
           'kumeSayisi': _kValue,
         }),

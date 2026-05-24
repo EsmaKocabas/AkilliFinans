@@ -23,7 +23,7 @@ export class PythonService {
       r.latitude.toString(),
       r.longitude.toString(),
       r.transaction_volume.toString(),
-      r.user_id.toString()
+      (r.user_id != null ? r.user_id.toString() : '')
     ]);
     
     const cpContent = [

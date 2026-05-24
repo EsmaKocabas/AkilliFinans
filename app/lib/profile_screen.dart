@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:provider/provider.dart';
 
 import 'design_preset.dart';
 import 'services/session_service.dart';
@@ -39,8 +40,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: AppSession.userName ?? '');
-    _emailController = TextEditingController(text: AppSession.userEmail ?? '');
+    final session = AppSession.instance;
+    _nameController = TextEditingController(text: session.userName ?? '');
+    _emailController = TextEditingController(text: session.userEmail ?? '');
     _phoneController = TextEditingController(text: '905551112233');
     _currentPasswordController = TextEditingController();
     _newPasswordController = TextEditingController();
@@ -54,21 +56,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _error = null;
     });
 
+    if (!mounted) return;
+    final session = context.read<AppSession>();
     try {
       final url = Uri.parse('${AppSession.baseUrl}/api/users/profile');
-      final response = await http.get(url, headers: AppSession.headers);
+      final response = await http.get(url, headers: session.headers);
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
         final user = body['user'];
 
         if (mounted) {
+          final budget = (user['budget'] as num).toDouble();
+          session.updateProfile(
+            fullName: user['fullName'] as String?,
+            email: user['email'] as String?,
+            budget: budget,
+          );
           setState(() {
             _nameController.text = user['fullName'] ?? '';
             _emailController.text = user['email'] ?? '';
-            AppSession.userName = user['fullName'];
-            AppSession.userEmail = user['email'];
-            AppSession.budget = (user['budget'] as num).toDouble();
 
             final risk = user['riskAppetite'] ?? 50;
             if (risk < 35) {
@@ -81,7 +88,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             // Dynamically vary based on budget or userID for rich aesthetics
             final userId = user['id'] ?? 1;
-            _completedGoals = (AppSession.budget / 8000).clamp(2, 12).round();
+            _completedGoals = (budget / 8000).clamp(2, 12).round();
             _monthlySavings = userId % 2 == 0 ? '38%' : '42%';
 
             _isLoading = false;
@@ -117,11 +124,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _isLoading = true;
     });
 
+    if (!mounted) return;
+    final session = context.read<AppSession>();
     try {
       final url = Uri.parse('${AppSession.baseUrl}/api/users/profile');
       final response = await http.put(
         url,
-        headers: AppSession.headers,
+        headers: session.headers,
         body: jsonEncode({
           'fullName': _nameController.text.trim(),
         }),
@@ -135,7 +144,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           setState(() {
             _nameController.text = user['fullName'] ?? '';
             _emailController.text = user['email'] ?? '';
-            AppSession.userName = user['fullName'];
+            session.updateProfile(fullName: user['fullName'] as String?);
             _isEditing = false;
             _isLoading = false;
           });
@@ -444,7 +453,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             label: 'Çıkış Yap',
             danger: true,
             onTap: () {
-              AppSession.logout();
+              context.read<AppSession>().logout();
               Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
             },
           ),
