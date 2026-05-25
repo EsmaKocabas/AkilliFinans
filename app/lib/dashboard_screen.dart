@@ -12,6 +12,7 @@ import 'theme/design_tokens.dart';
 import 'widgets/financial_category_tile.dart';
 import 'widgets/scrollable_screen_shell.dart';
 
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({
     super.key,
@@ -110,7 +111,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Dashboard verileri yükleniyor...', style: TextStyle(fontSize: 16, color: Colors.black54)),
+          ],)
+      );
     }
 
     if (_error != null) {
@@ -184,7 +193,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: AppSpacing.md),
             _ActivitySection(transactions: _recentTransactions),
             const SizedBox(height: AppSpacing.md),
-            _FinancialCategoriesSection(distribution: _categoryDistribution),
+            _FinancialCategoriesSection(distribution: _categoryDistribution, transactions: _recentTransactions),
             const SizedBox(height: AppSpacing.md),
             _SectionCard(
               title: 'Hızlı Eylemler',
@@ -228,9 +237,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   if (_recentTransactions.isEmpty)
                     const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 20),
-                      child: Text('Henüz bir finansal işlem bulunmuyor.', style: TextStyle(color: Colors.grey)),
-                    )
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.receipt_long_outlined,
+                          size: 40,
+                          color: Colors.grey,
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Henüz bir finansal işlem bulunmuyor.',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  )
                   else
                     ..._recentTransactions.take(3).map((tx) {
                       final isPositive = (tx['amount'] as num) > 0;
@@ -288,13 +310,13 @@ class _ActivitySection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.sm),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.sm),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('İşlem etkinliği', style: AppTypography.sectionTitle),
-                const SizedBox(height: AppSpacing.xs),
+                SizedBox(height: AppSpacing.xs),
                 Text(
                   'Son finansal hareketler (canlı veritabanı verileri).',
                   style: AppTypography.sectionHint,
@@ -480,7 +502,7 @@ class _ActivityCategoryChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.label_outline, size: 14, color: AppColors.textPrimary.withOpacity(0.7)),
+              Icon(Icons.label_outline, size: 14, color: AppColors.textPrimary.withValues(alpha: 0.7)),
               const SizedBox(width: 6),
               Text(label, style: AppTypography.listSubtitle.copyWith(fontWeight: FontWeight.w600)),
             ],
@@ -546,9 +568,10 @@ class _MonthlySpendSlice {
 }
 
 class _FinancialCategoriesSection extends StatefulWidget {
-  const _FinancialCategoriesSection({required this.distribution});
+  const _FinancialCategoriesSection({required this.distribution, required this.transactions});
 
   final Map<String, double> distribution;
+  final List<dynamic> transactions;
 
   @override
   State<_FinancialCategoriesSection> createState() => _FinancialCategoriesSectionState();
@@ -673,12 +696,12 @@ class _FinancialCategoriesSectionState extends State<_FinancialCategoriesSection
               width: 10,
               height: 10,
               decoration: BoxDecoration(
-                color: s.chartColor.withOpacity(dimmed ? 0.38 : 1),
+                color: s.chartColor.withValues(alpha: dimmed ? 0.38 : 1),
                 shape: BoxShape.circle,
               ),
             ),
             const SizedBox(width: 10),
-            Icon(s.icon, size: 18, color: Theme.of(context).colorScheme.onSurface.withOpacity(dimmed ? 0.42 : 0.74)),
+            Icon(s.icon, size: 18, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: dimmed ? 0.42 : 0.74)),
             const SizedBox(width: 8),
             Expanded(
               child: Column(
@@ -689,14 +712,14 @@ class _FinancialCategoriesSectionState extends State<_FinancialCategoriesSection
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(dimmed ? 0.45 : 1),
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: dimmed ? 0.45 : 1),
                     ),
                   ),
                   Text(
                     '${_fmtTry(s.amountTry)} · %${pct.toStringAsFixed(1)}',
                     style: AppTypography.listSubtitle.copyWith(
                       fontSize: 12,
-                      color: AppColors.textMuted.withOpacity(dimmed ? 0.5 : 1),
+                      color: AppColors.textMuted.withValues(alpha: dimmed ? 0.5 : 1),
                     ),
                   ),
                 ],
@@ -731,15 +754,57 @@ class _FinancialCategoriesSectionState extends State<_FinancialCategoriesSection
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Finansal kategoriler', style: AppTypography.sectionTitle),
+          const Text('Finansal kategoriler', style: AppTypography.sectionTitle),
           const SizedBox(height: AppSpacing.xs),
-          Text(
+          const Text(
             'Bu ayın toplam harcamalarınızın Market, Fatura ve Ulaşım dağılımı; pastada özet, altta hızlı süzüm.',
             style: AppTypography.sectionHint,
           ),
           const SizedBox(height: AppSpacing.lg),
           Text('Harcama grafiği', style: AppTypography.sectionTitle.copyWith(fontSize: 15)),
+          const SizedBox(height: 8),
+          const Text('Son 7 günlük örnek harcama trendi gösterilmektedir.',
+          style: TextStyle(
+            color: Colors.grey,
+            fontSize: 12,
+          ),
+          ),
           const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 160,
+            child: LineChart(
+              LineChartData(
+                minX: 0,
+                maxX: 6,
+                minY: 0,
+                maxY: 350,
+                gridData: const FlGridData(show: false),
+                titlesData: const FlTitlesData(leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                               rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                               topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                               bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                               ),
+                lineTouchData: const LineTouchData(enabled: true),
+                lineBarsData: [
+                  LineChartBarData(
+                    isCurved: true,
+                    barWidth: 4,
+                    dotData: const FlDotData(show: true),
+                    belowBarData: BarAreaData(show: true, color: const Color(0xFF42A5F5).withValues(alpha: 0.3)),
+                    color: const Color(0xFF42A5F5),
+                    spots: widget.transactions.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final tx = entry.value;
+                      final amount = (tx['amount'] as num?)?.abs().toDouble() ?? 0;
+                      return FlSpot(index.toDouble(), amount);
+                    }).toList(),
+                  ),
+                ],
+              ),
+              ),
+              ),
+            const SizedBox(height: 48),
           LayoutBuilder(
             builder: (context, c) {
               final chartSide = (c.maxWidth >= 560 ? 168.0 : 176.0).clamp(148.0, 188.0);
@@ -842,7 +907,7 @@ class _PortfolioCard extends StatelessWidget {
           ),
           CircleAvatar(
             radius: 24,
-            backgroundColor: accent.withOpacity(0.25),
+            backgroundColor: accent.withValues(alpha: 0.25),
             child: const Icon(Icons.account_balance_wallet_outlined, color: Colors.white),
           ),
         ],

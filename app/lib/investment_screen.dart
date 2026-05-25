@@ -404,7 +404,7 @@ class _TradePanelCardState extends State<_TradePanelCard> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<_TradeAssetType>(
-                  value: _assetType,
+                  initialValue: _assetType,
                   decoration: const InputDecoration(
                     labelText: 'Ürün tipi',
                     border: OutlineInputBorder(),
@@ -425,7 +425,7 @@ class _TradePanelCardState extends State<_TradePanelCard> {
               const SizedBox(width: 10),
               Expanded(
                 child: DropdownButtonFormField<_TradeActionType>(
-                  value: _actionType,
+                  initialValue: _actionType,
                   decoration: const InputDecoration(
                     labelText: 'İşlem',
                     border: OutlineInputBorder(),

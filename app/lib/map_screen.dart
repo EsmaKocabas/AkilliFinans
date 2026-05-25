@@ -10,6 +10,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:provider/provider.dart';
 import 'services/session_service.dart';
+import 'core/constants/app_messages.dart';
+import 'core/utils/app_alerts.dart';
 
 /// Location-focused responsive page.
 class MapScreen extends StatefulWidget {
@@ -28,6 +30,8 @@ class _MapScreenState extends State<MapScreen> {
   geo.Position? currentPosition;
   String? errorMessage;
   bool isLoadingLocation = false;
+  bool isLoadingATMs = false;
+  bool isLoadingNearbyATMs = false;
 
   List<Map<String, dynamic>> atmPoints = [];
   List<Map<String, dynamic>> nearbyATMs = [];
@@ -38,6 +42,10 @@ class _MapScreenState extends State<MapScreen> {
 
   Future<void> _fetchCandidates() async {
     if (!mounted) return;
+    setState(() {
+      isLoadingATMs = true;
+      errorMessage = null;
+    });
     final session = context.read<AppSession>();
     try {
       final url = Uri.parse('${AppSession.baseUrl}/api/map/atms');
@@ -56,17 +64,39 @@ class _MapScreenState extends State<MapScreen> {
         if (mounted) {
           setState(() {
             atmPoints = mapped;
+            isLoadingATMs = false;
           });
-          await _updateMapMarkers(mapped);
+        }
+          
+         await _updateMapMarkers(mapped);
+        
+         }else {
+            if (mounted) {
+          setState(() {
+            errorMessage = AppMessages.atmLoadError;
+            isLoadingATMs = false;
+          });
         }
       }
     } catch (e) {
-      debugPrint('Candidate ATMs loading error: $e');
+      if (mounted) {
+        setState(() {
+          errorMessage = AppMessages.atmLoadError;
+          isLoadingATMs = false;
+        });
+      }  
+      AppAlerts.showSnackbar(context, AppMessages.atmLoadError);
+      
+      
     }
+
   }
 
   Future<void> _fetchNearbyATMs(double lat, double lng) async {
     if (!mounted) return;
+    setState(() {
+      isLoadingNearbyATMs = true;
+    });
     final session = context.read<AppSession>();
     try {
       final url = Uri.parse('${AppSession.baseUrl}/api/map/nearby?lat=$lat&lng=$lng');
@@ -76,7 +106,7 @@ class _MapScreenState extends State<MapScreen> {
         final body = jsonDecode(response.body);
         final List<dynamic> list = body['data'];
 
-        if (mounted) {
+        if (mounted) return;
           setState(() {
             nearbyATMs = list.map((item) => {
               "name": item['location_name'] ?? 'Bilinmeyen ATM',
@@ -85,14 +115,26 @@ class _MapScreenState extends State<MapScreen> {
               "distance": (item['distance'] as num).toDouble(),
             }).toList();
           });
+      } else {
+        if (mounted) {
+          AppAlerts.showSnackbar(context, AppMessages.atmLoadError);
         }
       }
     } catch (e) {
-      debugPrint('Nearby ATMs loading error: $e');
+      if (mounted) {
+        AppAlerts.showSnackbar(context, AppMessages.atmLoadError);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoadingNearbyATMs = false;
+        });
+      }
     }
   }
 
   Future<void> _updateMapMarkers(List<Map<String, dynamic>> points, {bool isOptimized = false}) async {
+    try {
     if (mapboxMap == null || pointAnnotationManager == null) return;
     
     await pointAnnotationManager!.deleteAll();
@@ -113,6 +155,9 @@ class _MapScreenState extends State<MapScreen> {
           iconSize: isOptimized ? 0.28 : 0.2,
         ),
       );
+    }
+    } catch (e) {
+      AppAlerts.showSnackbar(context, AppMessages.atmLoadError);
     }
   }
 
@@ -205,6 +250,68 @@ class _MapScreenState extends State<MapScreen> {
     await _fetchCandidates();
   }
 
+  void _showATMBottomSheet(Map<String, dynamic> atm) {
+
+    final distance = atm["distance"] as double?;
+    final walkingMinutes = distance != null
+    ? (distance / 80).ceil()
+    : null;
+
+    showModalBottomSheet(
+      context: context,
+      shape : const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                atm['name'] ?? 'ATM Noktası',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold,),
+              ),
+          
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(Icons.location_on_outlined, color: Color(0xFF616161), size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    atm["distance"] != null
+                        ? "Mesafe: ${atm["distance"].toStringAsFixed(0)} m"
+                        : 'Konum bilgisi mevcut',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Row(
+                children: [
+                  Icon(Icons.access_time),
+                  SizedBox(width: 8),
+                  Text('24 saat açık'),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (walkingMinutes != null) ...[
+              const SizedBox(height: 12),
+               Row(
+                children: [
+                  const Icon(Icons.directions_walk_outlined),
+                  const SizedBox(width: 8),
+                  Text("Yaklaşık $walkingMinutes dk yürüme mesafesi"),
+             ],
+            ),
+          ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> getUserLocation() async {
     try {
       setState(() {
@@ -281,12 +388,10 @@ class _MapScreenState extends State<MapScreen> {
         MapAnimationOptions(duration: 1000),
       );
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          errorMessage = 'Konum alınırken hata oluştu: $e';
-          isLoadingLocation = false;
-        });
-      }
+      setState(() {
+        errorMessage = AppMessages.locationError;
+        isLoadingLocation = false;
+      });
     }
   }
 
@@ -328,12 +433,16 @@ class _MapScreenState extends State<MapScreen> {
                       ),
                     },
                     onMapCreated: (MapboxMap map) async {
+                      try { 
                       mapboxMap = map;
                       pointAnnotationManager =
                           await map.annotations.createPointAnnotationManager();
 
                       await _fetchCandidates();
                       await getUserLocation();
+                      } catch (e) {
+                        AppAlerts.showSnackbar(context, AppMessages.mapLoadError);
+                      }
                     },
                   ),
                   Positioned(
@@ -373,6 +482,21 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ),
             const SizedBox(height: 12),
+            if (isLoadingATMs) 
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 8),
+                    Text('ATM verileri yükleniyor...', style: TextStyle(color: Colors.black87)),
+                  ],
+                ),
+              ),
             if (errorMessage != null) 
               Container(
                 padding: const EdgeInsets.all(12),
@@ -483,39 +607,65 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            _Card(
-              title: 'Yakındaki ATM Noktaları',
-              child: errorMessage != null
-                  ? const Text('Konum alınamadığı için yakın noktalar gösterilemiyor.', style: TextStyle(color: Color(0xFFD32F2F)))
-                  : isLoadingLocation
-                      ? const Text('Konum alınıyor...')
-                      : nearbyATMs.isEmpty
-                          ? const Text('Yakında ATM bulunamadı.')
-                          : Column(
-                              children: nearbyATMs.map((atm) {
-                                return _LocationRow(
-                                  title: atm["name"],
-                                  distance: atm["distance"] < 1000
-                                      ? "${atm["distance"].toStringAsFixed(0)} m"
-                                      : "${(atm["distance"] / 1000).toStringAsFixed(1)} km",
-                                  onTap: () {
-                                    mapboxMap?.flyTo(
-                                      CameraOptions(
-                                        center: Point(
-                                          coordinates: Position(
-                                            atm["lng"],
-                                            atm["lat"],
-                                          ),
-                                        ),
-                                        zoom: 15.0,
-                                      ),
-                                      MapAnimationOptions(duration: 1000),
-                                    );
-                                  },
-                                );
-                              }).toList(),
-                            ),
+     _Card(
+  title: 'Yakındaki ATM Noktaları',
+  child: errorMessage != null
+      ? Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Konum alınamadığı için yakın noktalar gösterilemiyor.',
+              style: TextStyle(color: Color(0xFFD32F2F)),
             ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: getUserLocation,
+              icon: const Icon(Icons.my_location),
+              label: const Text('Konumu Tekrar Dene'),
+            ),
+          ],
+        )
+      : isLoadingLocation || isLoadingNearbyATMs
+          ? const Row(
+              children: [
+                SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 8),
+                Text('Yakındaki ATM noktaları yükleniyor...', style: TextStyle(color: Colors.black87)),
+              ],
+            )
+          : nearbyATMs.isEmpty
+              ? const Text('Yakında ATM bulunamadı.')
+              : Column(
+                  children: nearbyATMs.map((atm) {
+                    return _LocationRow(
+                      title: atm["name"],
+                      distance: atm["distance"] < 1000
+                          ? "${atm["distance"].toStringAsFixed(0)} m"
+                          : "${(atm["distance"] / 1000).toStringAsFixed(1)} km",
+                      onTap: () {
+                        mapboxMap?.flyTo(
+                          CameraOptions(
+                            center: Point(
+                              coordinates: Position(
+                                atm["lng"],
+                                atm["lat"],
+                              ),
+                            ),
+                            zoom: 15.0,
+                          ),
+                          MapAnimationOptions(duration: 1000),
+                        );
+                        _showATMBottomSheet(atm);
+                      },
+                    );
+                  }).toList(),
+                ),
+),
+            
             const SizedBox(height: 12),
             const _Card(
               title: 'Rota Önerisi',
