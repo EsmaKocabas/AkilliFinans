@@ -377,9 +377,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Listeyi daralt', style: AppTypography.sectionTitle),
+              const Text('Listeyi daralt', style: AppTypography.sectionTitle),
               const SizedBox(height: AppSpacing.xs),
-              Text(
+              const Text(
                 'Önce işlem tipini, istenirse harcama kategorisini seçin.',
                 style: AppTypography.sectionHint,
               ),
@@ -416,7 +416,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Kategori filtresi', style: AppTypography.sectionTitle),
+                const Text('Kategori filtresi', style: AppTypography.sectionTitle),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   _filter == _TxFilter.gider
@@ -463,7 +463,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         const SizedBox(height: AppSpacing.lg),
         Row(
           children: [
-            Expanded(child: Text('İşlem listesi', style: AppTypography.sectionTitle)),
+            const Expanded(child: Text('İşlem listesi', style: AppTypography.sectionTitle)),
             Text('${visible.length} kayıt', style: AppTypography.listSubtitle),
           ],
         ),

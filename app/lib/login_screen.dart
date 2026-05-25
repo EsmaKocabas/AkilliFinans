@@ -5,11 +5,13 @@ import 'package:provider/provider.dart';
 import 'services/session_service.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
+
+
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
@@ -196,6 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           )
                         : const Text('Giriş Yap', style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
+                        
                   ),
                   const SizedBox(height: 24),
 
