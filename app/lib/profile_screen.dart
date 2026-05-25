@@ -26,9 +26,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final TextEditingController _newPasswordController;
   late final TextEditingController _confirmPasswordController;
   bool _isEditing = false;
-  bool _pushNotifications = true;
-  bool _emailNotifications = true;
-  bool _biometricLogin = false;
 
   bool _isLoading = true;
   String? _error;
@@ -86,10 +83,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _riskAppetiteLabel = 'Orta';
             }
 
-            // Dynamically vary based on budget or userID for rich aesthetics
-            final userId = user['id'] ?? 1;
-            _completedGoals = (budget / 8000).clamp(2, 12).round();
-            _monthlySavings = userId % 2 == 0 ? '38%' : '42%';
+            _completedGoals = user['completedGoals'] ?? 0;
+            _monthlySavings = user['monthlySavings'] ?? '0%';
 
             _isLoading = false;
           });
@@ -234,28 +229,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Hesap bilgilerini yönet, güvenlik ve bildirim ayarlarını güncelle.',
+                  'Hesap ve güvenlik bilgilerini yönet.',
                   style: TextStyle(color: subtitleColor),
                 ),
                 const SizedBox(height: 16),
                 _buildProfileHeader(colors),
                 const SizedBox(height: 16),
-                isWide
-                    ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: _buildAccountCard(colors)),
-                          const SizedBox(width: 16),
-                          Expanded(child: _buildPreferencesCard(colors)),
-                        ],
-                      )
-                    : Column(
-                        children: [
-                          _buildAccountCard(colors),
-                          const SizedBox(height: 12),
-                          _buildPreferencesCard(colors),
-                        ],
-                      ),
+                _buildAccountCard(colors),
                 const SizedBox(height: 12),
                 _buildActionsCard(colors),
               ],
@@ -393,54 +373,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildPreferencesCard(ColorScheme colors) {
-    return _SectionCard(
-      title: 'Tercihler',
-      child: Column(
-        children: [
-          SwitchListTile.adaptive(
-            value: _pushNotifications,
-            onChanged: (value) => setState(() => _pushNotifications = value),
-            title: const Text('Push Bildirimleri'),
-            subtitle: const Text('Anlık bütçe ve harcama hareketleri'),
-            activeColor: Colors.black,
-            contentPadding: EdgeInsets.zero,
-          ),
-          SwitchListTile.adaptive(
-            value: _emailNotifications,
-            onChanged: (value) => setState(() => _emailNotifications = value),
-            title: const Text('E-posta Özeti'),
-            subtitle: const Text('Haftalık finans raporu'),
-            activeColor: Colors.black,
-            contentPadding: EdgeInsets.zero,
-          ),
-          SwitchListTile.adaptive(
-            value: _biometricLogin,
-            onChanged: (value) => setState(() => _biometricLogin = value),
-            title: const Text('Biyometrik Giriş'),
-            subtitle: const Text('Parmak izi veya yüz ile giriş'),
-            activeColor: Colors.black,
-            contentPadding: EdgeInsets.zero,
-          ),
-          const Divider(height: 22),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.black,
-                side: const BorderSide(color: Colors.black26),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              onPressed: _showPasswordUpdateModal,
-              icon: const Icon(Icons.lock_reset),
-              label: const Text('Şifreyi Güncelle'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildActionsCard(ColorScheme colors) {
     return _SectionCard(
       title: 'Hızlı İşlemler',
@@ -448,6 +380,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         spacing: 10,
         runSpacing: 10,
         children: [
+          _ActionButton(
+            icon: Icons.lock_reset,
+            label: 'Şifreyi Güncelle',
+            onTap: _showPasswordUpdateModal,
+          ),
           _ActionButton(
             icon: Icons.logout,
             label: 'Çıkış Yap',
@@ -538,87 +475,134 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _newPasswordController.clear();
     _confirmPasswordController.clear();
 
+    bool dialogLoading = false;
+
     await showDialog<void>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Şifre Güncelle'),
-          content: Form(
-            key: passwordFormKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: _currentPasswordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Mevcut Şifre',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    final input = value?.trim() ?? '';
-                    if (input.isEmpty) {
-                      return 'Mevcut şifre boş olamaz.';
-                    }
-                    if (input.length < 8) {
-                      return 'Mevcut şifre en az 8 karakter olmalı.';
-                    }
-                    return null;
-                  },
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Şifre Güncelle'),
+              content: Form(
+                key: passwordFormKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: _currentPasswordController,
+                      obscureText: true,
+                      enabled: !dialogLoading,
+                      decoration: const InputDecoration(
+                        labelText: 'Mevcut Şifre',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        final input = value?.trim() ?? '';
+                        if (input.isEmpty) {
+                          return 'Mevcut şifre boş olamaz.';
+                        }
+                        if (input.length < 8) {
+                          return 'Mevcut şifre en az 8 karakter olmalı.';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _newPasswordController,
+                      obscureText: true,
+                      enabled: !dialogLoading,
+                      decoration: const InputDecoration(
+                        labelText: 'Yeni Şifre',
+                        border: OutlineInputBorder(),
+                        helperText: '8-32 karakter, büyük-küçük harf, sayı ve sembol içermeli.',
+                      ),
+                      validator: _validateNewPassword,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _confirmPasswordController,
+                      obscureText: true,
+                      enabled: !dialogLoading,
+                      decoration: const InputDecoration(
+                        labelText: 'Yeni Şifre (Tekrar)',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if ((value ?? '').isEmpty) {
+                          return 'Şifre tekrarı boş olamaz.';
+                        }
+                        if (value != _newPasswordController.text) {
+                          return 'Yeni şifreler eşleşmiyor.';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _newPasswordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Yeni Şifre',
-                    border: OutlineInputBorder(),
-                    helperText: '8-32 karakter, büyük-küçük harf, sayı ve sembol içermeli.',
-                  ),
-                  validator: _validateNewPassword,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: dialogLoading ? null : () => Navigator.of(context).pop(),
+                  child: const Text('İptal'),
                 ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _confirmPasswordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Yeni Şifre (Tekrar)',
-                    border: OutlineInputBorder(),
+                FilledButton(
+                  onPressed: dialogLoading
+                      ? null
+                      : () async {
+                          final isValid = passwordFormKey.currentState?.validate() ?? false;
+                          if (!isValid) return;
+
+                          setDialogState(() {
+                            dialogLoading = true;
+                          });
+
+                          final session = context.read<AppSession>();
+                          try {
+                            final url = Uri.parse('${AppSession.baseUrl}/api/users/change-password');
+                            final response = await http.put(
+                              url,
+                              headers: session.headers,
+                              body: jsonEncode({
+                                'currentPassword': _currentPasswordController.text,
+                                'newPassword': _newPasswordController.text,
+                              }),
+                            );
+
+                            final body = jsonDecode(response.body);
+                            if (response.statusCode == 200) {
+                              if (context.mounted) {
+                                Navigator.of(context).pop();
+                              }
+                              _showMessage('Şifreniz başarıyla güncellendi.');
+                            } else {
+                              final msg = body['message'] ?? 'Şifre güncellenemedi.';
+                              _showMessage('Hata: $msg');
+                            }
+                          } catch (e) {
+                            _showMessage('Bağlantı hatası: $e');
+                          } finally {
+                            setDialogState(() {
+                              dialogLoading = false;
+                            });
+                          }
+                        },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
                   ),
-                  validator: (value) {
-                    if ((value ?? '').isEmpty) {
-                      return 'Şifre tekrarı boş olamaz.';
-                    }
-                    if (value != _newPasswordController.text) {
-                      return 'Yeni şifreler eşleşmiyor.';
-                    }
-                    return null;
-                  },
+                  child: dialogLoading
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text('Güncelle'),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('İptal'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final isValid = passwordFormKey.currentState?.validate() ?? false;
-                if (!isValid) {
-                  return;
-                }
-                Navigator.of(context).pop();
-                _showMessage('Şifreniz başarıyla güncellendi.');
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Güncelle'),
-            ),
-          ],
+            );
+          },
         );
       },
     );

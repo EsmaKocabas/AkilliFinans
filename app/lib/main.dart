@@ -16,6 +16,10 @@ void main() async {
   } else {
     mapbox.MapboxOptions.setAccessToken("pk.mock-token");
   }
+
+  // Yerel cihazda veri depolama: Oturum bilgisini yükle
+  await AppSession.instance.initSession();
+
   runApp(
     ChangeNotifierProvider<AppSession>.value(
       value: AppSession.instance,

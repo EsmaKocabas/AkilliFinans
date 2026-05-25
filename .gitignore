@@ -1,3 +1,7 @@
+# Node / Dependency Rules
+node_modules/
+dist/
+
 # Python / Backend Kuralları
 venv/
 __pycache__/
@@ -16,4 +20,8 @@ app/.pub-cache/
 app/.pub/
 app/ios/Pods/
 
+# System / IDE
+.DS_Store
+.vscode/
+.idea/
 *.log

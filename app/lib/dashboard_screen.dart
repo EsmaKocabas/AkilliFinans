@@ -35,7 +35,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double _income = 0.0;
   double _expense = 0.0;
   double _savings = 0.0;
-  Map<String, double> _categoryDistribution = {'Market': 0.0, 'Fatura': 0.0, 'Ulaşım': 0.0};
+  Map<String, double> _categoryDistribution = {
+    'Market': 0.0,
+    'Fatura': 0.0,
+    'Ulaşım': 0.0,
+    'Eğlence': 0.0,
+    'Konut': 0.0,
+    'Yatırım': 0.0
+  };
   List<dynamic> _recentTransactions = [];
 
   @override
@@ -549,7 +556,7 @@ class _DashboardActivityDetailRow extends StatelessWidget {
   }
 }
 
-enum _SpendQuickFilter { tumu, market, fatura, ulasim }
+enum _SpendQuickFilter { tumu, market, fatura, ulasim, eglence, konut, yatirim }
 
 class _MonthlySpendSlice {
   const _MonthlySpendSlice({
@@ -580,20 +587,22 @@ class _FinancialCategoriesSection extends StatefulWidget {
 class _FinancialCategoriesSectionState extends State<_FinancialCategoriesSection> {
   _SpendQuickFilter _selected = _SpendQuickFilter.tumu;
   List<FlSpot> get _expenseSpots {
-  final expenses = widget.transactions
-      .where((tx) => (tx['amount'] as num?) != null)
-      .map((tx) => (tx['amount'] as num).toDouble())
-      .where((amount) => amount < 0)
-      .map((amount) => amount.abs())
-      .take(7)
-      .toList();
+    final expenses = widget.transactions
+        .where((tx) => (tx['amount'] as num?) != null)
+        .map((tx) => (tx['amount'] as num).toDouble())
+        .where((amount) => amount < 0)
+        .map((amount) => amount.abs())
+        .take(7)
+        .toList()
+        .reversed
+        .toList();
 
-  if (expenses.isEmpty) return [];
+    if (expenses.isEmpty) return [];
 
-  return expenses.asMap().entries.map((entry) {
-    return FlSpot(entry.key.toDouble(), entry.value);
-  }).toList();
-}
+    return expenses.asMap().entries.map((entry) {
+      return FlSpot(entry.key.toDouble(), entry.value);
+    }).toList();
+  }
   List<_MonthlySpendSlice> get _chartSlices => [
     _MonthlySpendSlice(
       filter: _SpendQuickFilter.market,
@@ -607,13 +616,34 @@ class _FinancialCategoriesSectionState extends State<_FinancialCategoriesSection
       label: 'Fatura',
       amountTry: widget.distribution['Fatura'] ?? 0.0,
       icon: Icons.receipt_long_outlined,
-      chartColor: const Color(0xFF546E7A),
+      chartColor: const Color(0xFF37474F),
     ),
     _MonthlySpendSlice(
       filter: _SpendQuickFilter.ulasim,
       label: 'Ulaşım',
       amountTry: widget.distribution['Ulaşım'] ?? widget.distribution['Ulasim'] ?? 0.0,
       icon: Icons.directions_bus_outlined,
+      chartColor: const Color(0xFF455A64),
+    ),
+    _MonthlySpendSlice(
+      filter: _SpendQuickFilter.eglence,
+      label: 'Eğlence',
+      amountTry: widget.distribution['Eğlence'] ?? widget.distribution['Eglence'] ?? 0.0,
+      icon: Icons.theaters_outlined,
+      chartColor: const Color(0xFF546E7A),
+    ),
+    _MonthlySpendSlice(
+      filter: _SpendQuickFilter.konut,
+      label: 'Konut',
+      amountTry: widget.distribution['Konut'] ?? 0.0,
+      icon: Icons.home_work_outlined,
+      chartColor: const Color(0xFF78909C),
+    ),
+    _MonthlySpendSlice(
+      filter: _SpendQuickFilter.yatirim,
+      label: 'Yatırım',
+      amountTry: widget.distribution['Yatırım'] ?? widget.distribution['Yatirim'] ?? 0.0,
+      icon: Icons.trending_up_outlined,
       chartColor: const Color(0xFF90A4AE),
     ),
   ];
@@ -636,6 +666,12 @@ class _FinancialCategoriesSectionState extends State<_FinancialCategoriesSection
         return 1;
       case _SpendQuickFilter.ulasim:
         return 2;
+      case _SpendQuickFilter.eglence:
+        return 3;
+      case _SpendQuickFilter.konut:
+        return 4;
+      case _SpendQuickFilter.yatirim:
+        return 5;
     }
   }
 
@@ -756,10 +792,13 @@ class _FinancialCategoriesSectionState extends State<_FinancialCategoriesSection
   Widget build(BuildContext context) {
     final total = _totalSpend();
     final filterHint = switch (_selected) {
-      _SpendQuickFilter.tumu => 'Ayın tamamına ait üç kategori dağılımı gösteriliyor.',
-      _SpendQuickFilter.market => 'Şu anda yalnızca Market dilimi vurgulandı (demo süzüm).',
-      _SpendQuickFilter.fatura => 'Şu anda yalnızca Fatura dilimi vurgulandı (demo süzüm).',
-      _SpendQuickFilter.ulasim => 'Şu anda yalnızca Ulaşım dilimi vurgulandı (demo süzüm).',
+      _SpendQuickFilter.tumu => 'Ayın tamamına ait kategori dağılımı gösteriliyor.',
+      _SpendQuickFilter.market => 'Şu anda yalnızca Market dilimi gösterilmektedir.',
+      _SpendQuickFilter.fatura => 'Şu anda yalnızca Fatura dilimi gösterilmektedir.',
+      _SpendQuickFilter.ulasim => 'Şu anda yalnızca Ulaşım dilimi gösterilmektedir.',
+      _SpendQuickFilter.eglence => 'Şu anda yalnızca Eğlence dilimi gösterilmektedir.',
+      _SpendQuickFilter.konut => 'Şu anda yalnızca Konut dilimi gösterilmektedir.',
+      _SpendQuickFilter.yatirim => 'Şu anda yalnızca Yatırım dilimi gösterilmektedir.',
     };
 
     return Container(
@@ -771,13 +810,13 @@ class _FinancialCategoriesSectionState extends State<_FinancialCategoriesSection
           const Text('Finansal kategoriler', style: AppTypography.sectionTitle),
           const SizedBox(height: AppSpacing.xs),
           const Text(
-            'Bu ayın toplam harcamalarınızın Market, Fatura ve Ulaşım dağılımı; pastada özet, altta hızlı süzüm.',
+            'Bu ayın toplam harcamalarınızın Market, Fatura, Ulaşım, Eğlence, Konut ve Yatırım dağılımı; pastada özet, altta hızlı süzüm.',
             style: AppTypography.sectionHint,
           ),
           const SizedBox(height: AppSpacing.lg),
           Text('Harcama grafiği', style: AppTypography.sectionTitle.copyWith(fontSize: 15)),
           const SizedBox(height: 8),
-          const Text('Son 7 günlük örnek harcama trendi gösterilmektedir.',
+          const Text('Son 7 günlük harcama trendiniz gösterilmektedir.',
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle( color: Colors.grey, fontSize: 12),
@@ -849,7 +888,7 @@ class _FinancialCategoriesSectionState extends State<_FinancialCategoriesSection
           const SizedBox(height: AppSpacing.sm),
           Center(
             child: Text(
-              'Aylık toplam harcama (örnek): ${_fmtTry(total)}',
+              'Aylık toplam harcama: ${_fmtTry(total)}',
               style: AppTypography.caption,
             ),
           ),

@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 
 /// Uygulama genelinde oturum ve kullanıcı verisi (Provider / Context API).
@@ -43,55 +44,106 @@ class AppSession extends ChangeNotifier {
         if (_token != null) 'Authorization': 'Bearer $_token',
       };
 
-  void signIn({
+  Future<void> initSession() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _token = prefs.getString('auth_token');
+      _userId = prefs.getInt('auth_user_id');
+      _userName = prefs.getString('auth_user_name');
+      _userEmail = prefs.getString('auth_user_email');
+      _budget = prefs.getDouble('auth_user_budget') ?? 0.0;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading persisted session: $e');
+    }
+  }
+
+  Future<void> signIn({
     required String token,
     required int userId,
     required String fullName,
     required String email,
     required double budget,
-  }) {
+  }) async {
     _token = token;
     _userId = userId;
     _userName = fullName;
     _userEmail = email;
     _budget = budget;
     notifyListeners();
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('auth_token', token);
+      await prefs.setInt('auth_user_id', userId);
+      await prefs.setString('auth_user_name', fullName);
+      await prefs.setString('auth_user_email', email);
+      await prefs.setDouble('auth_user_budget', budget);
+    } catch (e) {
+      debugPrint('Error saving session to local storage: $e');
+    }
   }
 
-  void updateBudget(double value) {
+  Future<void> updateBudget(double value) async {
     if (_budget == value) return;
     _budget = value;
     notifyListeners();
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('auth_user_budget', value);
+    } catch (e) {
+      debugPrint('Error updating budget in local storage: $e');
+    }
   }
 
-  void updateProfile({
+  Future<void> updateProfile({
     String? fullName,
     String? email,
     double? budget,
-  }) {
+  }) async {
     var changed = false;
-    if (fullName != null && _userName != fullName) {
-      _userName = fullName;
-      changed = true;
-    }
-    if (email != null && _userEmail != email) {
-      _userEmail = email;
-      changed = true;
-    }
-    if (budget != null && _budget != budget) {
-      _budget = budget;
-      changed = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (fullName != null && _userName != fullName) {
+        _userName = fullName;
+        await prefs.setString('auth_user_name', fullName);
+        changed = true;
+      }
+      if (email != null && _userEmail != email) {
+        _userEmail = email;
+        await prefs.setString('auth_user_email', email);
+        changed = true;
+      }
+      if (budget != null && _budget != budget) {
+        _budget = budget;
+        await prefs.setDouble('auth_user_budget', budget);
+        changed = true;
+      }
+    } catch (e) {
+      debugPrint('Error updating profile in local storage: $e');
     }
     if (changed) notifyListeners();
   }
 
-  void logout() {
+  Future<void> logout() async {
     _token = null;
     _userId = null;
     _userName = null;
     _userEmail = null;
     _budget = 0.0;
     notifyListeners();
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('auth_token');
+      await prefs.remove('auth_user_id');
+      await prefs.remove('auth_user_name');
+      await prefs.remove('auth_user_email');
+      await prefs.remove('auth_user_budget');
+    } catch (e) {
+      debugPrint('Error clearing local storage on logout: $e');
+    }
   }
 
   static AppSession watch(BuildContext context) => context.watch<AppSession>();
