@@ -183,7 +183,10 @@ export class TransactionController {
       const categories: { [key: string]: number } = {
         'Market': 0,
         'Fatura': 0,
-        'Ulaşım': 0
+        'Ulaşım': 0,
+        'Eğlence': 0,
+        'Konut': 0,
+        'Yatırım': 0
       };
 
       categoryRes.rows.forEach(row => {

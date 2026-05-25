@@ -1,8 +1,38 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
 import { db } from '../config/db.js';
+import bcrypt from 'bcryptjs';
 
 export class UserController {
+  private static async getProfileMetrics(userId: number) {
+    // Calculate real monthly savings rate from transactions
+    const incomeRes = await db.query(
+      "SELECT COALESCE(SUM(amount), 0) as income FROM transactions WHERE user_id = $1 AND amount > 0;",
+      [userId]
+    );
+    const income = parseFloat(incomeRes.rows[0].income);
+
+    const expenseRes = await db.query(
+      "SELECT COALESCE(SUM(ABS(amount)), 0) as expense FROM transactions WHERE user_id = $1 AND amount < 0;",
+      [userId]
+    );
+    const expense = parseFloat(expenseRes.rows[0].expense);
+
+    const savingsRate = income > 0 ? Math.round(((income - expense) / income) * 100) : 0;
+
+    // Calculate completed goals based on total active investments
+    const invRes = await db.query(
+      "SELECT COUNT(*) as count FROM investments WHERE user_id = $1;",
+      [userId]
+    );
+    const completedGoals = parseInt(invRes.rows[0].count);
+
+    return {
+      monthlySavings: `${savingsRate}%`,
+      completedGoals
+    };
+  }
+
   public static async getProfile(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
@@ -17,6 +47,7 @@ export class UserController {
       }
 
       const user = userRes.rows[0];
+      const metrics = await UserController.getProfileMetrics(userId);
 
       res.status(200).json({
         user: {
@@ -24,7 +55,8 @@ export class UserController {
           fullName: user.full_name,
           email: user.email,
           budget: parseFloat(user.budget),
-          riskAppetite: user.risk_appetite ? parseInt(user.risk_appetite) : 50
+          riskAppetite: user.risk_appetite ? parseInt(user.risk_appetite) : 50,
+          ...metrics
         }
       });
     } catch (error) {
@@ -60,6 +92,8 @@ export class UserController {
         params.push(parseFloat(budget));
       }
 
+      const metrics = await UserController.getProfileMetrics(userId);
+
       // If nothing to update, return current profile
       if (params.length === 0) {
         const user = userRes.rows[0];
@@ -70,7 +104,8 @@ export class UserController {
             fullName: user.full_name,
             email: user.email,
             budget: parseFloat(user.budget),
-            riskAppetite: user.risk_appetite ? parseInt(user.risk_appetite) : 50
+            riskAppetite: user.risk_appetite ? parseInt(user.risk_appetite) : 50,
+            ...metrics
           }
         });
       }
@@ -89,8 +124,44 @@ export class UserController {
           fullName: updatedUser.full_name,
           email: updatedUser.email,
           budget: parseFloat(updatedUser.budget),
-          riskAppetite: updatedUser.risk_appetite ? parseInt(updatedUser.risk_appetite) : 50
+          riskAppetite: updatedUser.risk_appetite ? parseInt(updatedUser.risk_appetite) : 50,
+          ...metrics
         }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public static async changePassword(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user?.id;
+      const { currentPassword, newPassword } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized', message: 'User not authenticated.' });
+      }
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: 'ValidationError', message: 'Current password and new password are required.' });
+      }
+
+      const userRes = await db.query("SELECT * FROM users WHERE id = $1;", [userId]);
+      if (userRes.rows.length === 0) {
+        return res.status(404).json({ error: 'NotFoundError', message: 'User not found.' });
+      }
+
+      const user = userRes.rows[0];
+
+      if (!bcrypt.compareSync(currentPassword, user.password_hash)) {
+        return res.status(400).json({ error: 'ValidationError', message: 'Mevcut şifreniz hatalı.' });
+      }
+
+      const newPasswordHash = bcrypt.hashSync(newPassword, 10);
+      await db.query("UPDATE users SET password_hash = $1 WHERE id = $2;", [newPasswordHash, userId]);
+
+      res.status(200).json({
+        message: 'Password updated successfully.'
       });
     } catch (error) {
       next(error);

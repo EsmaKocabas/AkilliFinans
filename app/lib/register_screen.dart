@@ -81,6 +81,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  String? _validatePassword(String? value) {
+    final input = value ?? '';
+    if (input.isEmpty) {
+      return 'Şifre boş olamaz.';
+    }
+    if (input.length < 8 || input.length > 32) {
+      return 'Şifre 8 ile 32 karakter arasında olmalı.';
+    }
+    if (!RegExp(r'[A-Z]').hasMatch(input)) {
+      return 'En az bir büyük harf içermeli.';
+    }
+    if (!RegExp(r'[a-z]').hasMatch(input)) {
+      return 'En az bir küçük harf içermeli.';
+    }
+    if (!RegExp(r'\d').hasMatch(input)) {
+      return 'En az bir rakam içermeli.';
+    }
+    if (!RegExp(r'[!@#$%^&*(),.?":{}|<>_\-+=/\\\[\]~`]').hasMatch(input)) {
+      return 'En az bir özel karakter içermeli.';
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -148,7 +171,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     hint: 'Şifre',
                     isVisible: _isPasswordVisible,
                     onToggle: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
-                    validator: (value) => (value == null || value.length < 6) ? 'Şifre en az 6 karakter olmalıdır' : null,
+                    helperText: '8-32 karakter; en az bir büyük harf, küçük harf, rakam ve özel karakter içermelidir.',
+                    validator: _validatePassword,
                   ),
                   const SizedBox(height: 16),
 
@@ -228,6 +252,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required bool isVisible,
     required VoidCallback onToggle,
     String? Function(String?)? validator,
+    String? helperText,
   }) {
     return TextFormField(
       controller: controller,
@@ -235,6 +260,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: Colors.grey, fontSize: 15),
+        helperText: helperText,
+        helperMaxLines: 2,
         prefixIcon: const Icon(Icons.lock_outline_rounded, color: Color(0xFF1D212F), size: 22),
         suffixIcon: IconButton(
           icon: Icon(isVisible ? Icons.visibility_off : Icons.visibility, color: const Color(0xFF1D212F), size: 20),

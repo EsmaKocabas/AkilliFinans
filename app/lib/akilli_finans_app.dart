@@ -40,7 +40,7 @@ class AkilliFinansApp extends StatelessWidget {
         useMaterial3: true,
       ),
       
-      initialRoute: '/login',
+      initialRoute: AppSession.instance.isLoggedIn ? '/dashboard' : '/login',
       
       routes: {
         '/login': (context) => const LoginScreen(),

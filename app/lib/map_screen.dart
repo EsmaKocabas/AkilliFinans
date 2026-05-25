@@ -41,6 +41,7 @@ class _MapScreenState extends State<MapScreen> {
   int _kValue = 3;
   bool _isOptimizing = false;
   List<Map<String, dynamic>> _optimizedCenters = [];
+  String _selectedFilter = 'ATM';
 
   Future<void> _fetchCandidates() async {
     if (!mounted) return;
@@ -57,10 +58,18 @@ class _MapScreenState extends State<MapScreen> {
         final body = jsonDecode(response.body);
         final List<dynamic> list = body['data'];
 
-        final mapped = list.map((item) => {
-          "name": item['location_name'] ?? 'Aday ATM',
-          "lat": (item['latitude'] as num).toDouble(),
-          "lng": (item['longitude'] as num).toDouble(),
+        final mapped = list.map((item) {
+          final id = item['candidate_id'] as int? ?? 1;
+          final tags = <String>['ATM'];
+          if (id % 3 == 0) tags.add('24 Saat');
+          if (id % 4 == 0) tags.add('Şube');
+          if (id % 5 == 0) tags.add('Yatırım Merkezi');
+          return {
+            "name": item['location_name'] ?? 'Aday ATM',
+            "lat": (item['latitude'] as num).toDouble(),
+            "lng": (item['longitude'] as num).toDouble(),
+            "tags": tags,
+          };
         }).toList();
 
         if (mounted) {
@@ -70,7 +79,7 @@ class _MapScreenState extends State<MapScreen> {
           });
         }
           
-         await _updateMapMarkers(mapped);
+        await _updateMapMarkers(_getFilteredCandidates());
         
          }else {
             if (mounted) {
@@ -108,16 +117,24 @@ class _MapScreenState extends State<MapScreen> {
         final body = jsonDecode(response.body);
         final List<dynamic> list = body['data'];
 
-        if (mounted) return;
-          setState(() {
-            nearbyATMs = list.map((item) => {
+        if (!mounted) return;
+        setState(() {
+          nearbyATMs = list.map((item) {
+            final id = item['candidate_id'] as int? ?? 1;
+            final tags = <String>['ATM'];
+            if (id % 3 == 0) tags.add('24 Saat');
+            if (id % 4 == 0) tags.add('Şube');
+            if (id % 5 == 0) tags.add('Yatırım Merkezi');
+            return {
               "name": item['location_name'] ?? 'Bilinmeyen ATM',
               "lat": (item['latitude'] as num).toDouble(),
               "lng": (item['longitude'] as num).toDouble(),
               "distance": (item['distance'] as num).toDouble(),
-            }).toList();
-          });
-          _checkNearbyATMAlert();
+              "tags": tags,
+            };
+          }).toList();
+        });
+        _checkNearbyATMAlert();
       } else {
         if (mounted) {
           AppAlerts.showSnackbar(context, AppMessages.atmLoadError);
@@ -289,6 +306,21 @@ class _MapScreenState extends State<MapScreen> {
     await _fetchCandidates();
   }
 
+  List<Map<String, dynamic>> _getFilteredCandidates() {
+    return atmPoints.where((pt) {
+      final List<String> tags = List<String>.from(pt["tags"] ?? ['ATM']);
+      return tags.contains(_selectedFilter);
+    }).toList();
+  }
+
+  void _onFilterChanged(String newFilter) {
+    setState(() {
+      _selectedFilter = newFilter;
+      _optimizedCenters = [];
+    });
+    _updateMapMarkers(_getFilteredCandidates());
+  }
+
   void _showATMBottomSheet(Map<String, dynamic> atm) {
 
     final distance = atm["distance"] as double?;
@@ -445,7 +477,7 @@ class _MapScreenState extends State<MapScreen> {
           children: [
             const Text('Harita', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
             const SizedBox(height: 4),
-            const Text('ATM, şube ve rota planlaması.', style: TextStyle(color: Color(0xFF616161))),
+            const Text('ATM ve şube konumları.', style: TextStyle(color: Color(0xFF616161))),
             const SizedBox(height: 16),
             Container(
               height: 270,
@@ -633,92 +665,108 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            const _Card(
+            _Card(
               title: 'Harita Filtreleri',
               child: Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _FilterChip(label: 'ATM'),
-                  _FilterChip(label: 'Şube'),
-                  _FilterChip(label: '24 Saat'),
-                  _FilterChip(label: 'Yatırım Merkezi'),
+                  _FilterChip(
+                    label: 'ATM',
+                    isSelected: _selectedFilter == 'ATM',
+                    onTap: () => _onFilterChanged('ATM'),
+                  ),
+                  _FilterChip(
+                    label: 'Şube',
+                    isSelected: _selectedFilter == 'Şube',
+                    onTap: () => _onFilterChanged('Şube'),
+                  ),
+                  _FilterChip(
+                    label: '24 Saat',
+                    isSelected: _selectedFilter == '24 Saat',
+                    onTap: () => _onFilterChanged('24 Saat'),
+                  ),
+                  _FilterChip(
+                    label: 'Yatırım Merkezi',
+                    isSelected: _selectedFilter == 'Yatırım Merkezi',
+                    onTap: () => _onFilterChanged('Yatırım Merkezi'),
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 12),
-     _Card(
-  title: 'Yakındaki ATM Noktaları',
-  child: errorMessage != null
-      ? Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Konum alınamadığı için yakın noktalar gösterilemiyor.',
-              style: TextStyle(color: Color(0xFFD32F2F)),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: getUserLocation,
-              icon: const Icon(Icons.my_location),
-              label: const Text('Konumu Tekrar Dene'),
-            ),
-          ],
-        )
-      : isLoadingLocation || isLoadingNearbyATMs
-          ? const Row(
-              children: [
-                SizedBox(
-                  height: 18,
-                  width: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                SizedBox(width: 8),
-                Text('Yakındaki ATM noktaları yükleniyor...', style: TextStyle(color: Colors.black87)),
-              ],
-            )
-          : nearbyATMs.isEmpty
-              ? const Text('Yakında ATM bulunamadı.')
-              : Column(
-                  children: nearbyATMs.map((atm) {
-                    return _LocationRow(
-                      title: atm["name"],
-                      distance: atm["distance"] < 1000
-                          ? "${atm["distance"].toStringAsFixed(0)} m"
-                          : "${(atm["distance"] / 1000).toStringAsFixed(1)} km",
-                      onTap: () {
-                        mapboxMap?.flyTo(
-                          CameraOptions(
-                            center: Point(
-                              coordinates: Position(
-                                atm["lng"],
-                                atm["lat"],
-                              ),
+            _Card(
+              title: 'Yakındaki ATM Noktaları',
+              child: errorMessage != null
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Konum alınamadığı için yakın noktalar gösterilemiyor.',
+                          style: TextStyle(color: Color(0xFFD32F2F)),
+                        ),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: getUserLocation,
+                          icon: const Icon(Icons.my_location),
+                          label: const Text('Konumu Tekrar Dene'),
+                        ),
+                      ],
+                    )
+                  : isLoadingLocation || isLoadingNearbyATMs
+                      ? const Row(
+                          children: [
+                            SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             ),
-                            zoom: 15.0,
-                          ),
-                          MapAnimationOptions(duration: 1000),
-                        );
-                        _showATMBottomSheet(atm);
-                      },
-                    );
-                  }).toList(),
-                ),
-),
-            
-            const SizedBox(height: 12),
-           _Card(
-  title: 'Rota Önerisi',
-  child: ListTile(
-    contentPadding: EdgeInsets.zero,
-    leading: const Icon(Icons.route_outlined),
-    title: Text(
-      nearestDistance == null
-          ? 'Yakın ATM aranıyor...'
-          : 'Size en yakın ATM yaklaşık ${(nearestDistance! / 80).ceil()} dk uzaklıkta',
-    ),
-  ),
-),
+                            SizedBox(width: 8),
+                            Text('Yakındaki ATM noktaları yükleniyor...', style: TextStyle(color: Colors.black87)),
+                          ],
+                        )
+                      : nearbyATMs.isEmpty
+                          ? const Text('Yakında ATM bulunamadı.')
+                          : Builder(
+                              builder: (context) {
+                                final filteredNearby = nearbyATMs.where((atm) {
+                                  final List<String> tags = List<String>.from(atm["tags"] ?? ['ATM']);
+                                  return tags.contains(_selectedFilter);
+                                }).toList();
+
+                                if (filteredNearby.isEmpty) {
+                                  return const Text('Yakında bu kriterlere uygun ATM bulunamadı.');
+                                }
+
+                                return Column(
+                                  children: filteredNearby.map((atm) {
+                                    return _LocationRow(
+                                      title: atm["name"],
+                                      distance: atm["distance"] < 1000
+                                          ? "${atm["distance"].toStringAsFixed(0)} m"
+                                          : "${(atm["distance"] / 1000).toStringAsFixed(1)} km",
+                                      onTap: () {
+                                        mapboxMap?.flyTo(
+                                          CameraOptions(
+                                            center: Point(
+                                              coordinates: Position(
+                                                atm["lng"],
+                                                atm["lat"],
+                                              ),
+                                            ),
+                                            zoom: 15.0,
+                                          ),
+                                          MapAnimationOptions(duration: 1000),
+                                        );
+                                        _showATMBottomSheet(atm);
+                                      },
+                                    );
+                                  }).toList(),
+                                );
+                              },
+                            ),
+            ),
+
           ],
         ),
       ),
@@ -753,15 +801,49 @@ class _Card extends StatelessWidget {
 }
 
 class _FilterChip extends StatelessWidget {
-  const _FilterChip({required this.label});
+  const _FilterChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
   final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Chip(
-      label: Text(label),
-      side: const BorderSide(color: Colors.black12),
-      backgroundColor: const Color(0xFFF1F1F1),
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.black : const Color(0xFFF1F1F1),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(
+            color: isSelected ? Colors.black : Colors.black12,
+            width: 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  )
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.black87,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            fontSize: 13,
+          ),
+        ),
+      ),
     );
   }
 }

@@ -5,7 +5,7 @@ import sqlite3
 
 load_dotenv = importlib.import_module("dotenv").load_dotenv
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 load_dotenv(ROOT / ".env")
 load_dotenv(ROOT / "app" / ".env")
 load_dotenv(ROOT / "backend" / ".env")

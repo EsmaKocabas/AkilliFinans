@@ -579,7 +579,7 @@ class _SummaryStrip extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Örnek dönem özeti', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                const Text('Dönem özeti', style: TextStyle(color: Colors.white70, fontSize: 12)),
                 const SizedBox(height: 6),
                 Text(
                   'Toplam harcama · ₺${_formatMoney(expenseSum)}',

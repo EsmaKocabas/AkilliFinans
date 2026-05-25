@@ -30,7 +30,7 @@ export class AuthController {
         `INSERT INTO users (full_name, email, password_hash, budget, is_active, created_at)
          VALUES ($1, $2, $3, $4, true, NOW())
          RETURNING id, full_name, email, budget;`,
-        [fullName.trim(), email.trim().toLowerCase(), passwordHash, 50000.00]
+        [fullName.trim(), email.trim().toLowerCase(), passwordHash, 0.00]
       );
 
       const newUser = insertUserRes.rows[0];

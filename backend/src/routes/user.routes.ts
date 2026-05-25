@@ -9,5 +9,6 @@ router.use(authMiddleware);
 
 router.get('/profile', UserController.getProfile);
 router.put('/profile', UserController.updateProfile);
+router.put('/change-password', UserController.changePassword);
 
 export { router as userRouter };
