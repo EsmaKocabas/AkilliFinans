@@ -32,6 +32,7 @@ class _MapScreenState extends State<MapScreen> {
   bool isLoadingLocation = false;
   bool isLoadingATMs = false;
   bool isLoadingNearbyATMs = false;
+  bool hasShownGeofenceAlert = false;
 
   List<Map<String, dynamic>> atmPoints = [];
   List<Map<String, dynamic>> nearbyATMs = [];
@@ -115,6 +116,7 @@ class _MapScreenState extends State<MapScreen> {
               "distance": (item['distance'] as num).toDouble(),
             }).toList();
           });
+          _checkNearbyATMAlert();
       } else {
         if (mounted) {
           AppAlerts.showSnackbar(context, AppMessages.atmLoadError);
@@ -131,6 +133,40 @@ class _MapScreenState extends State<MapScreen> {
         });
       }
     }
+  }
+
+  void _checkNearbyATMAlert() {
+  if (hasShownGeofenceAlert || currentPosition == null) return;
+
+  for (final atm in atmPoints) {
+    final distance = geo.Geolocator.distanceBetween(
+      currentPosition!.latitude,
+      currentPosition!.longitude,
+      atm["lat"],
+      atm["lng"],
+    );
+
+    if (distance < 1000) {
+      hasShownGeofenceAlert = true;
+
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Yakındaki ATM'),
+          content: Text(
+            '${atm["name"]} konumuna yaklaştınız.\nYaklaşık mesafe: ${distance.toStringAsFixed(0)} m',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Tamam'),
+            ),
+          ],
+        ),
+      );
+      break;
+    }
+  }
   }
 
   Future<void> _updateMapMarkers(List<Map<String, dynamic>> points, {bool isOptimized = false}) async {
@@ -352,6 +388,7 @@ class _MapScreenState extends State<MapScreen> {
         });
       }
       await _fetchNearbyATMs(position.latitude, position.longitude);
+      _checkNearbyATMAlert();
       
       if (mapboxMap == null) return; 
     
