@@ -579,7 +579,21 @@ class _FinancialCategoriesSection extends StatefulWidget {
 
 class _FinancialCategoriesSectionState extends State<_FinancialCategoriesSection> {
   _SpendQuickFilter _selected = _SpendQuickFilter.tumu;
+  List<FlSpot> get _expenseSpots {
+  final expenses = widget.transactions
+      .where((tx) => (tx['amount'] as num?) != null)
+      .map((tx) => (tx['amount'] as num).toDouble())
+      .where((amount) => amount < 0)
+      .map((amount) => amount.abs())
+      .take(7)
+      .toList();
 
+  if (expenses.isEmpty) return [];
+
+  return expenses.asMap().entries.map((entry) {
+    return FlSpot(entry.key.toDouble(), entry.value);
+  }).toList();
+}
   List<_MonthlySpendSlice> get _chartSlices => [
     _MonthlySpendSlice(
       filter: _SpendQuickFilter.market,
@@ -764,46 +778,50 @@ class _FinancialCategoriesSectionState extends State<_FinancialCategoriesSection
           Text('Harcama grafiği', style: AppTypography.sectionTitle.copyWith(fontSize: 15)),
           const SizedBox(height: 8),
           const Text('Son 7 günlük örnek harcama trendi gösterilmektedir.',
-          style: TextStyle(
-            color: Colors.grey,
-            fontSize: 12,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle( color: Colors.grey, fontSize: 12),
           ),
-          ),
+          
           const SizedBox(height: AppSpacing.sm),
           const SizedBox(height: 20),
           SizedBox(
-            height: 160,
-            child: LineChart(
-              LineChartData(
-                minX: 0,
-                maxX: 6,
-                minY: 0,
-                maxY: 350,
-                gridData: const FlGridData(show: false),
-                titlesData: const FlTitlesData(leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                               rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                               topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                               bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                               ),
-                lineTouchData: const LineTouchData(enabled: true),
-                lineBarsData: [
-                  LineChartBarData(
-                    isCurved: true,
-                    barWidth: 4,
-                    dotData: const FlDotData(show: true),
-                    belowBarData: BarAreaData(show: true, color: const Color(0xFF42A5F5).withValues(alpha: 0.3)),
-                    color: const Color(0xFF42A5F5),
-                    spots: widget.transactions.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final tx = entry.value;
-                      final amount = (tx['amount'] as num?)?.abs().toDouble() ?? 0;
-                      return FlSpot(index.toDouble(), amount);
-                    }).toList(),
-                  ),
-                ],
+  height: 130,
+  child: _expenseSpots.isEmpty
+      ? const Center(
+          child: Text(
+            'Grafik verisi bulunamadı.',
+            style: TextStyle(color: Colors.grey),
+          ),
+        )
+      : LineChart(
+          LineChartData(
+            minX: 0,
+            maxX: (_expenseSpots.length - 1).toDouble(),
+            minY: 0,
+            maxY: _expenseSpots
+                    .map((e) => e.y)
+                    .reduce((a, b) => a > b ? a : b) *
+                1.2,
+            gridData: const FlGridData(show: false),
+            borderData: FlBorderData(show: false),
+            titlesData: const FlTitlesData(show: false),
+            lineBarsData: [
+              LineChartBarData(
+                isCurved: true,
+                barWidth: 4,
+                color: const Color(0xFF42A5F5),
+                dotData: const FlDotData(show: true),
+                belowBarData: BarAreaData(
+                  show: true,
+                  color: const Color(0xFF42A5F5).withValues(alpha: 0.20),
+                ),
+                spots: _expenseSpots,
               ),
-              ),
-              ),
+            ],
+          ),
+        ),
+),
             const SizedBox(height: 48),
           LayoutBuilder(
             builder: (context, c) {
@@ -901,7 +919,12 @@ class _PortfolioCard extends StatelessWidget {
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 28),
                 ),
                 const SizedBox(height: 6),
-                const Text('+₺8.240 bu ay', style: TextStyle(color: Colors.white70)),
+                const Text(
+                  'Bu ay güncel finans özeti',
+                  style: TextStyle(
+                    color: Colors.white70,
+                  ),
+),
               ],
             ),
           ),

@@ -33,6 +33,7 @@ class _MapScreenState extends State<MapScreen> {
   bool isLoadingATMs = false;
   bool isLoadingNearbyATMs = false;
   bool hasShownGeofenceAlert = false;
+  double? nearestDistance;
 
   List<Map<String, dynamic>> atmPoints = [];
   List<Map<String, dynamic>> nearbyATMs = [];
@@ -145,7 +146,9 @@ class _MapScreenState extends State<MapScreen> {
       atm["lat"],
       atm["lng"],
     );
-
+      if (nearestDistance == null || distance < nearestDistance!) {
+        nearestDistance = distance;
+      }
     if (distance < 1000) {
       hasShownGeofenceAlert = true;
 
@@ -704,15 +707,18 @@ class _MapScreenState extends State<MapScreen> {
 ),
             
             const SizedBox(height: 12),
-            const _Card(
-              title: 'Rota Önerisi',
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.route_outlined),
-                title: Text('En kısa rota ile 7 dk'),
-                subtitle: Text('Yoğunluk düşük, yürüyerek önerilir.'),
-              ),
-            ),
+           _Card(
+  title: 'Rota Önerisi',
+  child: ListTile(
+    contentPadding: EdgeInsets.zero,
+    leading: const Icon(Icons.route_outlined),
+    title: Text(
+      nearestDistance == null
+          ? 'Yakın ATM aranıyor...'
+          : 'Size en yakın ATM yaklaşık ${(nearestDistance! / 80).ceil()} dk uzaklıkta',
+    ),
+  ),
+),
           ],
         ),
       ),
